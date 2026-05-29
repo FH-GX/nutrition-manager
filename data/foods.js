@@ -9,7 +9,7 @@
  * 脂肪酸说明：
  * - omega3（欧米伽-3）：α-亚麻酸(ALA) + EPA + DHA，主要来源深海鱼、亚麻籽油、紫苏油
  * - omega6（欧米伽-6）：亚油酸(LA)，主要来源植物油、坚果
- * - 夏萌建议：omega3与omega6比例应为 1:4 ~ 1:6
+ * - GX建议：omega3与omega6比例应为 1:4 ~ 1:6
  */
 
 const FOOD_DATABASE = [
@@ -4922,7 +4922,7 @@ function calcOmegaRatio(omega3, omega6) {
   const ratio = omega6 / omega3;
   const ratioText = `1:${Math.round(ratio * 10) / 10}`;
   
-  // 夏萌建议：1:4 ~ 1:6
+  // GX建议：1:4 ~ 1:6
   let status = 'good';
   let suggestion = '比例良好';
   

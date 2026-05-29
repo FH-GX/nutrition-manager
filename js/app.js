@@ -1,8 +1,8 @@
 /**
  * 低碳水营养计算器 - 主逻辑
- * 基于夏萌《低碳水：适合国人体质的慢病营养策略》
+ * 基于GX低碳水营养策略
  *
- * 公式说明（夏萌原书方法）：
+ * 公式说明（GX方法）：
  * - 标准体重(kg) = 身高(cm) - 105
  * - 摄入总能量 = 目标体重 × 能量系数 × 年龄系数
  * - 目标体重：BMI<28用标准体重，BMI≥28用调节体重=（真实体重+标准体重）/2
@@ -838,7 +838,7 @@ function getBMIStatus(bmi) {
 }
 
 /**
- * 计算标准体重（夏萌原书方法）
+ * 计算标准体重（GX方法）
  * 无论男女均用此公式
  * @param {number} heightCm - 身高（厘米）
  * @returns {number} 标准体重(kg)
@@ -872,12 +872,12 @@ function calculateAgeFactor(age) {
 
 /**
  * 获取能量系数（按体力活动量）
- * 对应夏萌原书标准：卧床25 / 轻体力30 / 中体力35 / 重体力40 (kcal/kg)
+ * 对应GX方法标准：卧床25 / 轻体力30 / 中体力35 / 重体力40 (kcal/kg)
  * @param {number} activityMultiplier - 活动系数（对应select值）
  * @returns {number} 能量系数(kcal/kg)
  */
 function getEnergyCoefficient(activityMultiplier) {
-    // 与 index.html 中 activity select 选项对应（夏萌原书四档）：
+    // 与 index.html 中 activity select 选项对应（GX方法四档）：
     // 1.2=卧床(25) 1.375=轻体力劳动(30) 1.55=中体力劳动(35) 1.725=重体力劳动(40)
     if (activityMultiplier <= 1.2) return 25;   // 卧床：几乎不活动
     if (activityMultiplier <= 1.375) return 30; // 轻体力：办公室工作，少量活动
@@ -886,7 +886,7 @@ function getEnergyCoefficient(activityMultiplier) {
 }
 
 /**
- * 计算每日总能量（夏萌原书方法）
+ * 计算每日总能量（GX方法）
  * @param {number} heightCm - 身高（厘米）
  * @param {number} weightKg - 体重（公斤）
  * @param {number} age - 年龄（岁）
@@ -1050,7 +1050,7 @@ async function toggleMacroRatioSettings() {
 }
 
 /**
- * 渲染计算结果（夏萌标准体重法增强版）
+ * 渲染计算结果（GX标准体重法增强版）
  * 在原有结果基础上，增加标准体重、调节体重、年龄系数等说明
  */
 function renderResults_XiaMeng(formData, xiaResult, bmr, macros) {
@@ -1075,7 +1075,7 @@ function renderResults_XiaMeng(formData, xiaResult, bmr, macros) {
     document.getElementById('bmrValue').textContent = Math.round(bmr);
     document.getElementById('tdeeValue').textContent = xiaResult.tdee;
 
-    // 在TDEE下方插入夏萌方法的计算说明
+    // 在TDEE下方插入GX方法的计算说明
     renderXiaMengDetail(xiaResult);
 
     // 三大营养素（标签值 + 实际吸收值）
@@ -2141,7 +2141,7 @@ function selectLowCarbProfile(profileIndex) {
 }
 
 /**
- * 在结果页渲染夏萌方法的计算明细
+ * 在结果页渲染GX方法的计算明细
  */
 function renderXiaMengDetail(r) {
     // 在 tdeeValue 后面插入一行说明（如果已存在则更新）
@@ -2400,7 +2400,7 @@ function loadFromURL() {
         };
         populateForm(data);
 
-        // 自动计算（夏萌标准体重法）
+        // 自动计算（GX标准体重法）
         const xiaResult = calculateTDEE_XiaMeng(
             data.height, data.weight, data.age, data.activity
         );
