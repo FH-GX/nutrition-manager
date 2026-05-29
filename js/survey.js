@@ -222,9 +222,7 @@ function doLogin(name) {
 
     // 显示右上角用户信息
     const headerRight = document.getElementById('headerRight');
-    const headerUserName = document.getElementById('headerUserName');
     if (headerRight) headerRight.style.display = 'flex';
-    if (headerUserName) headerUserName.textContent = '👤 ' + name;
 
     updateNavActive('calculator');
 
