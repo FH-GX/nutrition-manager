@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>今天，吃了吗？ | 适合国人体质的慢病营养策略</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/admin.css">
+    <link rel="stylesheet" href="css/survey.css">
+</head>
+<body>
+    <div class="container">
+        <!-- ============================================
+        顶部导航
+        ============================================ -->
+        <header>
+            <div class="header-left">
+                <h1>🍽️ 今天，吃了吗？</h1>
+                <p class="subtitle">基于夏萌《低碳水：适合国人体质的慢病营养策略》</p>
+            </div>
+            <div class="header-right" id="headerRight" style="display:none;">
+                <span class="header-user" id="headerUserName"></span>
+                <button class="header-logout-btn" onclick="logoutUser()">🚪 退出</button>
+            </div>
+        </header>
+
+        <!-- ============================================
+        用户注册/登录（默认显示）
+        ============================================ -->
+        <div id="authSection" style="display:none;">
+            <div class="card auth-card">
+                <h2>🔐 创建账号</h2>
+                <p class="auth-desc">请先创建您的个人账号，以便保存饮食调查记录</p>
+
+                <div class="auth-tabs">
+                    <button class="auth-tab-btn active" onclick="switchAuthTab('register')" id="authTabRegister">注册</button>
+                    <button class="auth-tab-btn" onclick="switchAuthTab('login')" id="authTabLogin">登录</button>
+                    <button class="auth-tab-btn logout-btn" id="logoutBtn" style="display:none;">退出</button>
+                </div>
+
+                <div id="authFormRegister">
+                    <div class="auth-form-group">
+                        <input type="text" id="regName" placeholder="给自己起个名字" class="auth-input">
+                    </div>
+                    <div class="auth-form-group">
+                        <input type="password" id="regPassword" placeholder="设置密码（至少4位）" class="auth-input">
+                    </div>
+                    <div class="auth-form-group">
+                        <input type="password" id="regConfirm" placeholder="再次输入密码" class="auth-input">
+                    </div>
+                    <button class="btn-calculate" id="registerBtn">📝 注册并开始</button>
+                </div>
+
+                <div id="authFormLogin" style="display:none;">
+                    <div class="auth-form-group">
+                        <input type="text" id="loginName" placeholder="输入你的账号" class="auth-input" list="userAccountList" autocomplete="username">
+                        <datalist id="userAccountList"></datalist>
+                    </div>
+                    <div class="auth-form-group">
+                        <input type="password" id="loginPassword" placeholder="输入密码" class="auth-input" autocomplete="current-password">
+                    </div>
+                    <label class="auth-auto-login">
+                        <input type="checkbox" id="autoLoginCheck" checked>
+                        <span>自动登录</span>
+                    </label>
+                    <button class="btn-calculate" id="loginBtn">🔑 登录</button>
+                </div>
+
+                <div class="auth-error" id="authError" style="display:none;"></div>
+            </div>
+        </div>
+
+<!-- ============================================
+        营养计算器（登录后默认显示）
+        ============================================ -->
+        <div id="calculatorSection" style="display:none;">
+            <!-- 顶部切换区 -->
+            <div class="nav-tabs">
+                <button class="nav-btn active" onclick="showCalculator()">🧮 营养计算器</button>
+                <button class="nav-btn" onclick="showSurvey()">📋 填写问卷</button>
+                <button class="nav-btn" onclick="showHistory()">📊 我的记录</button>
+                <button class="nav-btn" onclick="showFoodDatabase()">🍎 食物库</button>
+            </div>
+
+            <!-- 输入表单区 -->
+            <div class="card" id="inputSection">
+                <h2>📋 基本信息</h2>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="name">姓名</label>
+                        <input type="text" id="name" placeholder="如：张三" value="">
+                    </div>
+                    <div class="form-group">
+                        <label for="gender">性别</label>
+                        <select id="gender">
+                            <option value="male">男</option>
+                            <option value="female">女</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="age">年龄（岁）</label>
+                        <input type="number" id="age" placeholder="如：45" min="18" max="100" value="">
+                    </div>
+                    <div class="form-group">
+                        <label for="height">身高（cm）</label>
+                        <input type="number" id="height" placeholder="如：170" min="100" max="220" value="">
+                    </div>
+                    <div class="form-group">
+                        <label for="weight">体重（kg）</label>
+                        <input type="number" id="weight" placeholder="如：70" min="30" max="200" step="0.1" value="">
+                    </div>
+                    <div class="form-group">
+                        <label for="activity">活动水平 <button type="button" class="help-icon-btn" onclick="alert('🏃 活动水平说明\n\n卧床 — 几乎不活动\n轻体力劳动 — 办公室工作、75%时间坐着\n中体力劳动 — 学生、销售、有一定职业活动量\n重体力劳动 — 工人、农民、每天高强度运动\n\n按工作类型选，不是运动量')" title="查看说明">❓</button></label>
+                        <select id="activity">
+                            <option value="1.2">卧床（几乎不活动）</option>
+                            <option value="1.375">轻体力劳动（办公室/少量活动）</option>
+                            <option value="1.55" selected>中体力劳动（每周运动3-5天）</option>
+                            <option value="1.725">重体力劳动（每周运动6-7天）</option>
+                        </select>
+                    </div>
+                </div>
+
+                <button class="btn-calculate" id="calculateBtn">📋 下一步：填写饮食问卷</button>
+            </div>
+
+            <!-- 原始结果区（供计算器重算用） -->
+            <div class="card result-section" id="resultSection" style="display:none;">
+                <h2>📊 计算结果 — <span id="resultName"></span></h2>
+                <div class="result-summary">
+                    <div class="summary-item">
+                        <span class="summary-label">BMI</span>
+                        <span class="summary-value" id="bmiValue">--</span>
+                        <span class="summary-status" id="bmiStatus">--</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-label">基础代谢BMR</span>
+                        <span class="summary-value" id="bmrValue">--</span>
+                        <span class="summary-unit">kcal/天</span>
+                    </div>
+                    <div class="summary-item highlight">
+                        <span class="summary-label">每日总消耗TDEE</span>
+                        <span class="summary-value" id="tdeeValue">--</span>
+                        <span class="summary-unit">kcal/天</span>
+                    </div>
+                </div>
+                <h3>🍽️ 每日营养目标</h3>
+                <div class="macro-display">
+                    <div class="macro-item protein">
+                        <div class="macro-circle" id="proteinCircle"><span class="macro-percent" id="proteinPercent">--%</span></div>
+                        <div class="macro-info">
+                            <strong>蛋白质</strong>
+                            <span id="proteinGrams">--g</span>
+                            <small id="proteinKcal">-- kcal</small>
+                            <span class="macro-actual" id="proteinGramsActual" style="color:#e74c3c;font-size:0.85em;"></span>
+                        </div>
+                    </div>
+                    <div class="macro-item fat">
+                        <div class="macro-circle" id="fatCircle"><span class="macro-percent" id="fatPercent">--%</span></div>
+                        <div class="macro-info">
+                            <strong>脂肪</strong>
+                            <span id="fatGrams">--g</span>
+                            <small id="fatKcal">-- kcal</small>
+                        </div>
+                    </div>
+                    <div class="macro-item carb">
+                        <div class="macro-circle" id="carbCircle"><span class="macro-percent" id="carbPercent">--%</span></div>
+                        <div class="macro-info">
+                            <strong>碳水</strong>
+                            <span id="carbGrams">--g</span>
+                            <small id="carbKcal">-- kcal</small>
+                        </div>
+                    </div>
+                </div>
+                <h3>🥩 食物换算</h3>
+                <div class="food-exchange" id="foodExchange"></div>
+                <h3>⚠️ 注意事项</h3>
+                <div class="warnings" id="warnings"></div>
+                <div class="result-actions">
+                    <button class="btn-secondary" id="resetBtn">🔄 重置</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================
+        方案生成页面（问卷提交后显示，独立于calculatorSection）
+        ============================================ -->
+        <div id="resultPageSection" style="display:none;">
+            <!-- 顶部导航 -->
+            <div class="nav-tabs">
+                <button class="nav-btn" onclick="showCalculator()">🧮 营养计算器</button>
+                <button class="nav-btn" onclick="showSurvey()">📋 填写问卷</button>
+                <button class="nav-btn active">📊 方案生成</button>
+                <button class="nav-btn" onclick="showFoodDatabase()">🍎 食物库</button>
+                <button class="nav-btn nav-btn-logout" onclick="logoutUser()">🚪 退出登录</button>
+            </div>
+
+            <!-- 用户信息 -->
+            <div class="result-user-info">
+                <span><span id="resultPageUserName"></span></span>
+            </div>
+
+            <!-- 分析报告区 -->
+            <div class="card" id="intakeAnalysisCard">
+                <div style="margin-bottom:12px;">
+                    <button class="btn-secondary" onclick="showSurvey()" style="display:inline-flex;align-items:center;gap:4px;padding:6px 14px;border-radius:8px;background:#f0f0f0;border:none;cursor:pointer;font-size:0.85rem;color:#555;">
+                        ← 返回填写问卷
+                    </button>
+                </div>
+                <h3>📊 您的实际饮食分析（近3个月）</h3>
+                <p class="analysis-note">基于问卷统计的每日平均摄入量</p>
+                <div id="intakeAnalysisContent"></div>
+            </div>
+
+            <!-- 档位选择区 -->
+            <div class="card" id="profileSelectorCard">
+                <h2>🎯 选择低碳水饮食档位</h2>
+                <p class="profile-intro">根据夏萌《低碳水》表4-1，请选择适合您的方案：</p>
+                <div id="profileSelectorContent"></div>
+            </div>
+
+            <!-- 结果展示区 -->
+            <div class="card result-section" id="resultSectionInPage">
+                <h2>📊 营养方案结果</h2>
+                <div id="resultContentInPage"></div>
+            </div>
+
+            <!-- 矿物质维生素达标率 -->
+            <div class="card" id="mvDashboardCard" style="display:none;">
+                <h2>💊 矿物质&维生素达标率</h2>
+                <p class="analysis-note">基于当日分餐方案的实际营养素摄入 vs 《中国居民膳食指南2022》推荐量</p>
+                <div id="mvDashboard"></div>
+            </div>
+        </div>
+
+        <div id="surveySection" style="display:none;">
+            <!-- 顶部切换区 -->
+            <div class="nav-tabs">
+                <button class="nav-btn" onclick="showCalculator()">🧮 营养计算器</button>
+                <button class="nav-btn" onclick="showSurvey()">📋 填写问卷</button>
+                <button class="nav-btn" onclick="showHistory()">📊 我的记录</button>
+                <button class="nav-btn" onclick="showFoodDatabase()">🍎 食物库</button>
+            </div>
+
+            <div class="card">
+                <div style="margin-bottom:12px;">
+                    <button class="btn-secondary" onclick="showCalculator()" style="display:inline-flex;align-items:center;gap:4px;padding:6px 14px;border-radius:8px;background:#f0f0f0;border:none;cursor:pointer;font-size:0.85rem;color:#555;">
+                        ← 返回营养计算器
+                    </button>
+                </div>
+                <div class="survey-header">
+                    <h2>📋 饮食习惯调查</h2>
+                    <div class="survey-user-info">
+                        <span><span id="surveyUserName"></span></span>
+                        <button class="auth-logout-btn" onclick="logoutUser()">切换账号</button>
+                    </div>
+                </div>
+                <p class="survey-desc">请根据您最近的饮食情况如实填写，这将帮助计算最适合您的营养方案。</p>
+
+                <!-- 填写说明 -->
+                <div class="survey-instructions">
+                    <h4>📝 填写说明</h4>
+                    <ol>
+                        <li>这个调查表是调查你近3个月的饮食习惯。</li>
+                        <li>你填写的频率和摄入量是估算值，不可能十分准确。虽然你不可能每一顿饭量都一样，但是在大多数情况下，你每一次就餐所吃的饭菜量不会相差太大。</li>
+                        <li>在填写进食频率时先问自己每天吃几次，如果不确定，就问自己每周吃几次，如果还不确定，就问自己每月吃几次。如果每月平均不到一次，就将频率算作"0"。</li>
+                        <li style="display:none;">碳水化合物存在于粮食类食物（从米饭到粗粮都是碳水化合物）和水果中；优质蛋白存在于肉、蛋、奶、动物内脏中。1个鸡蛋约含6g蛋白质，100mL牛奶约含3g蛋白质，100g瘦肉约含17g蛋白质。</li>
+                        <li>油脂的食用量不好计算，你可以通过以下4种食物摄入量来推断：肥肉、动物内脏、坚果、油炸食品。</li>
+                        <li>本表中的蔬菜指新鲜蔬菜（除根茎类粗粮、含淀粉的蔬菜），水果指新鲜水果。</li>
+                    </ol>
+                </div>
+
+                <!-- 食物摄入频率表 -->
+                <h3>🥘 食物摄入频率</h3>
+                <p class="table-hint">请填写您平时各类食物的摄入情况（频率和用量选填）</p>
+                <div class="survey-table-wrap">
+                    <table class="survey-table" id="foodFreqTable">
+                        <thead>
+                            <tr>
+                                <th class="col-food">食物种类</th>
+                                <th class="col-eat">是否食用</th>
+                                <th class="col-freq">进食频率</th>
+                                <th class="col-amount">平均每次食用量(g)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="foodFreqBody">
+                            <!-- JS动态生成 -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <p class="table-tip">💡 示例：每天吃2次米饭 → 次数填2，次/日</p>
+
+                <!-- 其他饮食习惯（带进食频率） -->
+                <h3>🔍 其他饮食习惯</h3>
+                <div class="other-habits" id="otherHabits">
+                    <!-- JS动态生成 -->
+                </div>
+
+                <button class="btn-calculate" id="surveySubmitBtn">✅ 提交问卷</button>
+            </div>
+        </div>
+
+<!-- ============================================
+    我的记录（日历视图）
+    ============================================ -->
+    <div id="historySection" style="display:none;">
+        <!-- 顶部切换区 -->
+        <div class="nav-tabs">
+            <button class="nav-btn" onclick="showCalculator()">🧮 营养计算器</button>
+            <button class="nav-btn" onclick="showSurvey()">📋 填写问卷</button>
+            <button class="nav-btn active" onclick="showHistory()">📊 我的记录</button>
+            <button class="nav-btn" onclick="showFoodDatabase()">🍎 食物库</button>
+        </div>
+        <div id="calendarContainer"></div>
+    </div>
+
+<!-- ============================================
+        食物数据库（登录后显示）
+        ============================================ -->
+        <div id="foodDbSection" style="display:none;">
+            <!-- 顶部切换区 -->
+            <div class="nav-tabs">
+                <button class="nav-btn" onclick="showCalculator()">🧮 营养计算器</button>
+                <button class="nav-btn" onclick="showSurvey()">📋 填写问卷</button>
+                <button class="nav-btn" onclick="showHistory()">📊 我的记录</button>
+                <button class="nav-btn active" onclick="showFoodDatabase()">🍎 食物库</button>
+            </div>
+
+            <div class="card">
+                <div class="survey-header">
+                    <h2>🍎 食物营养数据库</h2>
+                    <p class="survey-desc">查询食物的营养成分，为每日饮食提供数据参考。《中国食物成分表 标准版 第六版》</p>
+                </div>
+
+                <!-- 搜索框 -->
+                <div class="food-search-box">
+                    <input type="text" id="foodSearchInput" placeholder="🔍 搜索食物名称或别名..." oninput="renderFoodDbGrid()">
+                    <div class="food-filter-row" id="foodFilterRow"></div>
+                </div>
+
+                <!-- 统计信息 -->
+                <div class="food-stats">
+                    <div class="food-stat">
+                        <span class="food-stat-num" id="foodTotalCount">0</span>
+                        <span class="food-stat-label">种食物</span>
+                    </div>
+                    <div class="food-stat">
+                        <span class="food-stat-num" id="foodCategoryCount">0</span>
+                        <span class="food-stat-label">个分类</span>
+                    </div>
+                    <div class="food-stat food-stat-omega3">
+                        <span class="food-stat-num">1:4~6</span>
+                        <span class="food-stat-label">omega3:6 建议比例</span>
+                    </div>
+                </div>
+
+                <!-- 食物卡片网格 -->
+                <div class="food-db-grid" id="foodDbGrid"></div>
+            </div>
+        </div>
+
+                <!-- 页脚 -->
+        <footer>
+            <p>📖 参考：夏萌《低碳水：适合国人体质的慢病营养策略》</p>
+            <p>⚠️ 本工具仅供参考，不构成医疗建议。慢病患者请咨询医生或营养师。</p>
+        </footer>
+    </div>
+
+    <!-- ============================================
+    管理员后台面板（Ctrl+Shift+D 打开）
+    ============================================ -->
+    <div class="container admin-section" id="adminSection">
+        <div class="admin-header">
+            <div>
+                <h2>🛠️ 管理员后台</h2>
+                <div class="admin-user-info" id="adminUserInfo">
+                    <span id="adminUserEmail"></span>
+                </div>
+            </div>
+            <div class="admin-header-actions">
+                <button class="admin-btn admin-btn-secondary" onclick="exportKnowledgeBase()">📦 导出备份</button>
+                <button class="admin-btn admin-btn-danger" onclick="handleAdminLogout()">🚪 退出管理</button>
+            </div>
+        </div>
+
+        <!-- Tab 切换 -->
+        <div class="admin-tabs">
+            <button class="admin-tab-btn active" data-tab="knowledge" onclick="switchAdminTab('knowledge')">📚 知识库管理</button>
+            <button class="admin-tab-btn" data-tab="display" onclick="switchAdminTab('display')">✅ 扫盲学习台</button>
+            <button class="admin-tab-btn" data-tab="formulas" onclick="switchAdminTab('formulas')">🧮 公式说明</button>
+            <button class="admin-tab-btn" data-tab="userlevel" onclick="switchAdminTab('userlevel')">⭐ 用户等级</button>
+            <button class="admin-tab-btn" onclick="hideAdminPanel()">🔙 返回首页</button>
+        </div>
+
+        <!-- 知识库管理 -->
+        <div class="admin-tab-content active" id="tab-knowledge">
+            <div class="admin-toolbar">
+                <button class="admin-btn admin-btn-primary" onclick="showKnowledgeForm()">➕ 添加知识条目</button>
+                <span style="font-size:0.85rem;color:var(--text-light);" id="knowledgeCount"></span>
+            </div>
+
+            <div class="admin-knowledge-form" id="knowledgeForm" style="display:none;">
+                <h3 id="knowledgeFormTitle">➕ 添加知识条目</h3>
+                <div class="admin-form-group">
+                    <label for="knowledgeCategory">分类</label>
+                    <select id="knowledgeCategory">
+                        <option value="名词解释">📖 名词解释</option>
+                        <option value="计算公式">🧮 计算公式</option>
+                    </select>
+                </div>
+                <div class="admin-form-group">
+                    <label for="knowledgeName">标题</label>
+                    <input type="text" id="knowledgeName" placeholder="输入知识的标题">
+                </div>
+                <div class="admin-form-group">
+                    <label for="knowledgeContent">内容</label>
+                    <textarea id="knowledgeContent" placeholder="输入知识的详细内容，每段之间用空行分隔"></textarea>
+                </div>
+                <div class="admin-form-actions">
+                    <button class="admin-btn admin-btn-primary" onclick="saveKnowledgeItem()">💾 保存</button>
+                    <button class="admin-btn admin-btn-secondary" onclick="hideKnowledgeForm()">取消</button>
+                </div>
+            </div>
+
+            <div class="admin-knowledge-grid" id="knowledgeList">
+                <div class="admin-empty">正在加载...</div>
+            </div>
+        </div>
+
+        <!-- 扫盲学习台 -->
+        <div class="admin-tab-content" id="tab-display">
+            <div class="admin-display-toolbar">
+                <div>
+                    <span id="displayCount">0/0 项已勾选</span>
+                </div>
+                <div class="admin-display-actions">
+                    <button class="admin-btn-sm admin-btn-edit" onclick="selectAllDisplay(true)">✅ 全选</button>
+                    <button class="admin-btn-sm" onclick="selectAllDisplay(false)">⏸️ 取消全选</button>
+                    <button class="admin-btn-sm admin-btn-export" onclick="previewLearningPage()">👁️ 预览学习页</button>
+                </div>
+            </div>
+            <p style="font-size:0.85rem;color:var(--text-light);margin-bottom:12px;">
+                💡 勾选你想让家人学习的内容，保存后家人打开 <code style="background:#f0f0f0;padding:1px 6px;border-radius:4px;font-size:0.8rem;">?mode=learn</code> 链接就能看到
+            </p>
+            <div id="displaySettingsList">
+                <div class="admin-empty">正在加载...</div>
+            </div>
+        </div>
+
+        <!-- 公式说明（仅管理员可见） -->
+        <div class="admin-tab-content" id="tab-formulas">
+            <div class="card" style="margin-top:0;">
+                <h2>🧮 公式说明</h2>
+                <p style="font-size:0.85rem;color:var(--text-light);margin-bottom:16px;">以下为当前使用的营养学计算公式，基于夏萌《低碳水：适合国人体质的慢病营养策略》</p>
+
+                <h3>一、标准体重法（夏萌原书方法）</h3>
+                <div class="formula-block">
+                    <p><strong>标准体重（kg）= 身高（cm）- 105</strong></p>
+                    <p>无论男女均采用此公式。</p>
+                </div>
+
+                <h3>每天摄入总能量</h3>
+                <div class="formula-block">
+                    <code>摄入总能量（kcal/d）= 标准体重（或调节体重）× 能量系数 × 年龄系数</code>
+                </div>
+
+                <h3>能量系数（按体力活动量）</h3>
+                <table class="formula-table">
+                    <tr><th>活动类型</th><th>能量系数</th><th>说明</th></tr>
+                    <tr><td>卧床</td><td>25 kcal/kg</td><td>卧床不起</td></tr>
+                    <tr><td>轻体力劳动</td><td>30 kcal/kg</td><td>75%时间坐着，25%站立活动</td></tr>
+                    <tr><td>中体力劳动</td><td>35 kcal/kg</td><td>40%时间坐着，60%职业活动</td></tr>
+                    <tr><td>重体力劳动</td><td>40 kcal/kg</td><td>25%时间坐着，75%职业活动</td></tr>
+                </table>
+
+                <h3>BMI ≥ 28 时的调节体重</h3>
+                <div class="formula-block">
+                    <code>调节体重 =（真实体重 + 标准体重）÷ 2</code>
+                    <p>先用调节体重计算摄入总能量，等体重降下来（BMI < 28）后，再改用标准体重计算。</p>
+                </div>
+
+                <h3>年龄系数（50岁起每10年降0.1，最低0.4）</h3>
+                <table class="formula-table">
+                    <tr><th>年龄段</th><th>年龄系数</th><th>推导过程</th></tr>
+                    <tr><td>&lt; 50岁</td><td>1.0</td><td>无折扣</td></tr>
+                    <tr><td>50 ~ 59岁</td><td>0.9</td><td>ceil((50-49)/10)=1, 1.0-1×0.1</td></tr>
+                    <tr><td>60 ~ 69岁</td><td>0.8</td><td>ceil((60-49)/10)=2, 1.0-2×0.1</td></tr>
+                    <tr><td>70 ~ 79岁</td><td>0.7</td><td>ceil((70-49)/10)=3, 1.0-3×0.1</td></tr>
+                    <tr><td>80 ~ 89岁</td><td>0.6</td><td>ceil((80-49)/10)=4, 1.0-4×0.1</td></tr>
+                    <tr><td>90 ~ 99岁</td><td>0.5</td><td>ceil((90-49)/10)=5, 1.0-5×0.1</td></tr>
+                    <tr><td>100岁及以上</td><td>0.4</td><td>ceil((100-49)/10)=6, 1.0-6×0.1=0.4（封顶）</td></tr>
+                </table>
+                <div class="formula-block">
+                    <code>年龄系数 = max(0.4, 1.0 - ceil((年龄 - 49) / 10) × 0.1)</code>
+                </div>
+
+                <hr style="margin:24px 0;border:none;border-top:1px solid var(--border);">
+
+                <h3>二、Mifflin-St Jeor 公式（对比参考）</h3>
+                <div class="formula-block">
+                    <p><strong>BMR（基础代谢率）：</strong></p>
+                    <code>男：BMR = 10×体重(kg) + 6.25×身高(cm) - 5×年龄 + 5</code>
+                    <code>女：BMR = 10×体重(kg) + 6.25×身高(cm) - 5×年龄 - 161</code>
+                </div>
+                <div class="formula-block">
+                    <code>TDEE = BMR × 活动系数 × 目标调整系数</code>
+                </div>
+
+                <h3>标准营养素配比（中国居民膳食指南2022 + 夏萌实操）</h3>
+                <table class="formula-table">
+                    <tr><th></th><th>蛋白质</th><th>脂肪</th><th>碳水</th></tr>
+                    <tr><td>推荐范围</td><td>10%～15%</td><td>20%～30%</td><td>55%～65%</td></tr>
+                    <tr><td>实操取值</td><td>15%（取上限）</td><td>30%</td><td>55%（取下限）</td></tr>
+                </table>
+
+                <p style="font-size:0.8rem;color:#e67e22;margin-top:16px;">⚠️ 以上公式中，标准体重法为夏萌原书方法，Mifflin-St Jeor为通用公式，请以原书为准。</p>
+            </div>
+        </div>
+
+        <!-- 用户等级管理 -->
+        <div class="admin-tab-content" id="tab-userlevel">
+            <div id="userLevelList"></div>
+        </div>
+    </div>
+
+    <!-- Supabase SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="data/foods.js"></script>
+    <script src="data/minerals_vitamins.js"></script>
+    <script src="data/survey-data.js"></script>
+    <script src="js/app.js"></script>
+    <script src="js/supabase.js"></script>
+    <script src="js/admin.js"></script>
+    <script src="js/survey.js"></script>
+    <script src="js/meal-plan.js"></script>
+    <script src="js/calendar.js"></script>
+</body>
+</html>

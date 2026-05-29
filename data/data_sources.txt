@@ -1,0 +1,51 @@
+营养管理项目 - 食物矿物质&维生素数据来源
+============================================
+
+一、《中国食物成分表 标准版 第六版》
+   来源网页: https://nlc.chinanutri.cn/fq/
+   中国疾病预防控制中心营养与健康所 + 中国营养学会 官方数据
+   覆盖 110种中式食物，21个分类
+   查询方法：首页搜索框输入食物名称 → 点结果 → 查看营养表
+
+二、GitHub 数据仓库
+   仓库地址: https://github.com/Sanotsu/china-food-composition-data
+   数据路径: json_data_vision_251206_Qwen2-5-VL-72B-Instruct/
+   说明: 用视觉大模型从《中国食物成分表第六版》截图OCR识别
+   共1677条食物，含矿物质(Ca/Fe/Zn/Se/P/K/Na/Mg/Cu/Mn)和维生素
+   (VA/VB1/VB2/VC/VE/Niacin)
+   ⚠️ 作者不保证100%识别准确率
+
+三、USDA FoodData Central (美国农业部)
+   来源网页: https://fdc.nal.usda.gov/
+   查询方法：搜英文名(如 quinoa, sweet potato, oats)
+   数据来源: SR Legacy (2018最终版，不再更新)
+   覆盖食物:
+   - 藜麦（生）: Quinoa, uncooked (NDB 20035)
+     https://fdc.nal.usda.gov/fdc-app.html#/food-details/168874/nutrients
+   - 藜麦（熟）: Quinoa, cooked (NDB 20137)
+     https://fdc.nal.usda.gov/fdc-app.html#/food-details/168875/nutrients
+   - 紫薯: Sweet potato, raw (NDB 11507)
+   - 燕麦粥: Cereals, oats, regular and quick, unenriched,
+     cooked with water, without salt (NDB 08121)
+   注：紫薯是美国农业部 Sweet potato 数据（同种不同品种）
+
+四、BOSS手动查阅（CDC网站）
+   1. 燕麦片（生）
+      来源: nlc.chinanutri.cn 搜索"燕麦片"结果
+      数据: Ca=186 Fe=7.0 Zn=2.59 Se=4.30 VB1=0.30 VB2=0.13 烟酸=1.20
+            K=214 Na=3.7 P=291 Mg=177 Cu=0.45 Mn=3.36
+   2. 燕麦片（果仁、甜）
+      来源: nlc.chinanutri.cn 搜索"燕麦片"结果页第2页
+      数据: Ca=38 Fe=2.6 Zn=1.10 Se=3.90 VB1=0.29 VB2=0.07 烟酸=0.81
+            K=410 Na=26.5 P=172 Mg=58 Cu=0.40 Mn=1.53 碘=2.2
+   3. 面包（均值）
+      来源: nlc.chinanutri.cn 搜索"面包"结果
+      数据: Ca=49 Fe=2.0 Zn=0.75 Se=3.20 VB1=0.03 VB2=0.06 烟酸=1.70
+            K=88 Na=230.4 P=107 Mg=31 Cu=0.27 Mn=0.37
+
+五、补充说明
+   菜品(ID 99-105): 不含矿物质维生素数据（组合菜无标准值,BOSS确认）
+   油脂类(ID 91-98): 植物油几乎不含矿物质（只有VE有数据）
+   ID 94 亚麻籽油: 无矿物质维生素数据
+   缺微量营养素: VD/碘/VB6/VB12/叶酸/VK/泛酸/生物素
+   （成分表未检测这些项目）

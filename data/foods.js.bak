@@ -1,0 +1,1284 @@
+/**
+ * 中国食物营养成分数据库
+ * 数据来源：《中国食物成分表 标准版 第六版》杨月欣 主编
+ * 中国疾病预防控制中心营养与健康所
+ * 
+ * 数据格式：每100g可食部的营养成分含量
+ * 单位：能量-kcal，蛋白质/脂肪/碳水/纤维-g，胆固醇/omega3/omega6-mg
+ * 
+ * 脂肪酸说明：
+ * - omega3（欧米伽-3）：α-亚麻酸(ALA) + EPA + DHA，主要来源深海鱼、亚麻籽油、紫苏油
+ * - omega6（欧米伽-6）：亚油酸(LA)，主要来源植物油、坚果
+ * - 夏萌建议：omega3与omega6比例应为 1:4 ~ 1:6
+ */
+
+const FOOD_DATABASE = [
+  // ==================== 谷类及制品 ====================
+  {
+    id: 1,
+    name: "稻米（米饭）",
+    category: "谷类",
+    aliases: ["米饭", "大米饭", "白米饭"],
+    per100g: { calories: 116, protein: 2.6, fat: 0.3, carbs: 25.9, fiber: 0.3, cholesterol: 0, omega3: 2, omega6: 120 },
+    gi: 90,
+
+  },
+  {
+    id: 2,
+    name: "小麦粉（面粉）",
+    category: "谷类",
+    aliases: ["面粉", "小麦粉"],
+    per100g: { calories: 344, protein: 10.3, fat: 1.1, carbs: 74.6, fiber: 2.1, cholesterol: 0, omega3: 40, omega6: 400 },
+    exchange_g: 25,
+    gi: 85,
+  },
+  {
+    id: 3,
+    name: "面条（煮）",
+    category: "谷类",
+    aliases: ["挂面", "方便面", "拉面"],
+    per100g: { calories: 109, protein: 3.3, fat: 0.4, carbs: 22.8, fiber: 1.2, cholesterol: 0, omega3: 5, omega6: 150 },
+    gi: 60,
+  },
+  {
+    id: 4,
+    name: "馒头（标准粉）",
+    category: "谷类",
+    aliases: ["白馒头", "蒸馒头"],
+    per100g: { calories: 223, protein: 7.0, fat: 1.1, carbs: 47.0, fiber: 1.3, cholesterol: 0, omega3: 20, omega6: 380 },
+    exchange_g: 35,
+    gi: 85,
+  },
+  {
+    id: 5,
+    name: "包子（猪肉馅）",
+    category: "谷类",
+    aliases: ["肉包", "鲜肉包"],
+    per100g: { calories: 227, protein: 9.0, fat: 9.0, carbs: 28.0, fiber: 1.0, cholesterol: 35, omega3: 50, omega6: 1800 },
+    gi: 50,
+  },
+  {
+    id: 6,
+    name: "饺子（猪肉白菜馅）",
+    category: "谷类",
+    aliases: ["水饺", "饺子"],
+    per100g: { calories: 242, protein: 10.0, fat: 11.0, carbs: 27.0, fiber: 1.0, cholesterol: 40, omega3: 60, omega6: 1500 },
+    gi: 40,
+  },
+  {
+    id: 7,
+    name: "面包（白面包）",
+    category: "谷类",
+    aliases: ["吐司", "切片面包"],
+    per100g: { calories: 265, protein: 8.0, fat: 3.1, carbs: 50.0, fiber: 2.0, cholesterol: 20, omega3: 30, omega6: 900 },
+    gi: 75,
+  },
+  {
+    id: 8,
+    name: "粥（大米粥）",
+    category: "谷类",
+    aliases: ["白粥", "稀饭"],
+    per100g: { calories: 46, protein: 1.1, fat: 0.2, carbs: 9.9, fiber: 0.1, cholesterol: 0, omega3: 1, omega6: 50 },
+    exchange_g: 25,
+    gi: 69,
+  },
+  {
+    id: 9,
+    name: "糯米饭",
+    category: "谷类",
+    aliases: ["江米饭"],
+    per100g: { calories: 130, protein: 2.8, fat: 0.3, carbs: 28.5, fiber: 0.4, cholesterol: 0, omega3: 2, omega6: 100 },
+    exchange_g: 25,
+    gi: 87,
+  },
+  {
+    id: 10,
+    name: "玉米（鲜）",
+    category: "谷类",
+    aliases: ["甜玉米", "苞米"],
+    per100g: { calories: 96, protein: 4.0, fat: 1.2, carbs: 19.9, fiber: 2.9, cholesterol: 0, omega3: 30, omega6: 300 },
+    exchange_g: 200,
+    gi: 55,
+  },
+
+  // ==================== 薯类 ====================
+  {
+    id: 11,
+    name: "马铃薯（土豆）",
+    category: "薯类",
+    aliases: ["土豆", "洋芋"],
+    per100g: { calories: 76, protein: 2.0, fat: 0.1, carbs: 17.2, fiber: 1.8, cholesterol: 0, omega3: 3, omega6: 30 },
+    exchange_g: 100,
+    gi: 62,
+  },
+  {
+    id: 12,
+    name: "甘薯（红薯）",
+    category: "薯类",
+    aliases: ["红薯", "地瓜"],
+    per100g: { calories: 99, protein: 1.1, fat: 0.1, carbs: 23.6, fiber: 2.3, cholesterol: 0, omega3: 2, omega6: 20 },
+    gi: 54,
+  },
+  {
+    id: 13,
+    name: "芋头",
+    category: "薯类",
+    aliases: ["芋艿"],
+    per100g: { calories: 79, protein: 1.5, fat: 0.1, carbs: 18.6, fiber: 1.0, cholesterol: 0, omega3: 2, omega6: 30 },
+    exchange_g: 100,
+    gi: 53,
+  },
+  {
+    id: 14,
+    name: "山药",
+    category: "薯类",
+    aliases: ["淮山"],
+    per100g: { calories: 56, protein: 1.5, fat: 0.0, carbs: 12.4, fiber: 4.0, cholesterol: 0, omega3: 1, omega6: 20 },
+    exchange_g: 150,
+    gi: 51,
+  },
+
+  // ==================== 豆类及制品 ====================
+  {
+    id: 15,
+    name: "豆腐（北豆腐）",
+    category: "豆类",
+    aliases: ["老豆腐", "硬豆腐"],
+    per100g: { calories: 101, protein: 12.2, fat: 4.8, carbs: 2.0, fiber: 0.5, cholesterol: 0, omega3: 100, omega6: 2400 },
+    exchange_g: 100,
+    fat_source: "encourage_soy",
+    gi: 15,
+  },
+  {
+    id: 16,
+    name: "豆腐（南豆腐）",
+    category: "豆类",
+    aliases: ["嫩豆腐", "软豆腐"],
+    per100g: { calories: 87, protein: 8.1, fat: 3.7, carbs: 4.0, fiber: 0.4, cholesterol: 0, omega3: 80, omega6: 1800 },
+    exchange_g: 150,
+    fat_source: "encourage_soy",
+    gi: 15,
+  },
+  {
+    id: 17,
+    name: "豆浆",
+    category: "豆类",
+    aliases: ["豆奶"],
+    per100g: { calories: 33, protein: 2.9, fat: 1.2, carbs: 1.2, fiber: 0.2, cholesterol: 0, omega3: 30, omega6: 500 },
+    exchange_g: 400,
+    fat_source: "encourage_soy",
+    gi: 34,
+  },
+  {
+    id: 18,
+    name: "豆腐干",
+    category: "豆类",
+    aliases: ["香干", "熏干"],
+    per100g: { calories: 140, protein: 15.8, fat: 6.2, carbs: 5.0, fiber: 0.6, cholesterol: 0, omega3: 100, omega6: 3000 },
+    exchange_g: 50,
+    fat_source: "encourage_soy",
+    gi: 20,
+  },
+  {
+    id: 19,
+    name: "腐竹",
+    category: "豆类",
+    aliases: ["豆皮"],
+    per100g: { calories: 459, protein: 44.6, fat: 21.7, carbs: 21.3, fiber: 0.0, cholesterol: 0, omega3: 420, omega6: 9800 },
+    exchange_g: 20,
+    fat_source: "encourage_soy",
+    gi: 20,
+  },
+  {
+    id: 20,
+    name: "黄豆",
+    category: "豆类",
+    aliases: ["大豆"],
+    per100g: { calories: 359, protein: 35.1, fat: 16.0, carbs: 18.1, fiber: 11.5, cholesterol: 0, omega3: 1100, omega6: 7000 },
+    exchange_g: 25,
+    fat_source: "encourage_soy",
+    gi: 18,
+  },
+  {
+    id: 21,
+    name: "红豆",
+    category: "豆类",
+    aliases: ["赤小豆"],
+    per100g: { calories: 309, protein: 20.2, fat: 0.6, carbs: 55.7, fiber: 12.7, cholesterol: 0, omega3: 30, omega6: 100 },
+    exchange_g: 25,
+    gi: 30,
+  },
+  {
+    id: 22,
+    name: "绿豆",
+    category: "豆类",
+    aliases: ["绿豆"],
+    per100g: { calories: 319, protein: 23.1, fat: 0.8, carbs: 53.0, fiber: 8.7, cholesterol: 0, omega3: 40, omega6: 200 },
+    exchange_g: 25,
+    gi: 27,
+  },
+
+  // ==================== 蔬菜类 ====================
+  {
+    id: 23,
+    name: "大白菜",
+    category: "蔬菜",
+    aliases: ["白菜", "黄芽白"],
+    per100g: { calories: 17, protein: 1.2, fat: 0.1, carbs: 3.4, fiber: 1.0, cholesterol: 0, omega3: 8, omega6: 30 },
+    exchange_g: 500,
+    gi: 15,
+  },
+  {
+    id: 24,
+    name: "油菜（小青菜）",
+    category: "蔬菜",
+    aliases: ["青菜", "小油菜"],
+    per100g: { calories: 14, protein: 1.3, fat: 0.2, carbs: 2.1, fiber: 1.1, cholesterol: 0, omega3: 20, omega6: 50 },
+    exchange_g: 500,
+    gi: 15,
+  },
+  {
+    id: 25,
+    name: "菠菜",
+    category: "蔬菜",
+    aliases: ["菠菜"],
+    per100g: { calories: 20, protein: 2.2, fat: 0.2, carbs: 2.4, fiber: 2.2, cholesterol: 0, omega3: 30, omega6: 130 },
+    exchange_g: 500,
+    gi: 15,
+  },
+  {
+    id: 26,
+    name: "番茄（西红柿）",
+    category: "蔬菜",
+    aliases: ["西红柿", "番茄"],
+    per100g: { calories: 15, protein: 0.7, fat: 0.2, carbs: 3.2, fiber: 1.2, cholesterol: 0, omega3: 5, omega6: 50 },
+    exchange_g: 500,
+    gi: 15,
+  },
+  {
+    id: 27,
+    name: "黄瓜",
+    category: "蔬菜",
+    aliases: ["黄瓜", "青瓜"],
+    per100g: { calories: 12, protein: 0.7, fat: 0.1, carbs: 2.5, fiber: 0.7, cholesterol: 0, omega3: 3, omega6: 30 },
+    exchange_g: 500,
+    gi: 15,
+  },
+  {
+    id: 28,
+    name: "茄子",
+    category: "蔬菜",
+    aliases: ["茄子"],
+    per100g: { calories: 19, protein: 0.8, fat: 0.1, carbs: 4.3, fiber: 1.3, cholesterol: 0, omega3: 3, omega6: 30 },
+    exchange_g: 500,
+    gi: 20,
+  },
+  {
+    id: 29,
+    name: "土豆",
+    category: "蔬菜",
+    aliases: ["马铃薯", "土豆"],
+    per100g: { calories: 76, protein: 2.0, fat: 0.1, carbs: 17.2, fiber: 1.8, cholesterol: 0, omega3: 3, omega6: 30 },
+    exchange_g: 100,
+    gi: 62,
+  },
+  {
+    id: 30,
+    name: "胡萝卜",
+    category: "蔬菜",
+    aliases: ["胡萝卜"],
+    per100g: { calories: 32, protein: 0.9, fat: 0.2, carbs: 7.1, fiber: 2.8, cholesterol: 0, omega3: 2, omega6: 80 },
+    exchange_g: 200,
+    gi: 71,
+  },
+  {
+    id: 31,
+    name: "白萝卜",
+    category: "蔬菜",
+    aliases: ["萝卜"],
+    per100g: { calories: 16, protein: 0.5, fat: 0.1, carbs: 3.4, fiber: 1.3, cholesterol: 0, omega3: 2, omega6: 20 },
+    exchange_g: 400,
+    gi: 30,
+  },
+  {
+    id: 32,
+    name: "莲藕",
+    category: "蔬菜",
+    aliases: ["藕"],
+    per100g: { calories: 47, protein: 1.6, fat: 0.1, carbs: 10.9, fiber: 2.2, cholesterol: 0, omega3: 2, omega6: 40 },
+    exchange_g: 150,
+    gi: 45,
+  },
+  {
+    id: 33,
+    name: "西蓝花",
+    category: "蔬菜",
+    aliases: ["西兰花", "绿菜花"],
+    per100g: { calories: 27, protein: 2.8, fat: 0.4, carbs: 4.3, fiber: 2.8, cholesterol: 0, omega3: 20, omega6: 80 },
+    gi: 25,
+  },
+  {
+    id: 34,
+    name: "花菜（菜花）",
+    category: "蔬菜",
+    aliases: ["菜花", "花椰菜"],
+    per100g: { calories: 19, protein: 1.8, fat: 0.2, carbs: 3.2, fiber: 1.8, cholesterol: 0, omega3: 5, omega6: 40 },
+    exchange_g: 350,
+    gi: 25,
+  },
+  {
+    id: 35,
+    name: "南瓜",
+    category: "蔬菜",
+    aliases: ["倭瓜", "北瓜"],
+    per100g: { calories: 22, protein: 0.6, fat: 0.1, carbs: 4.7, fiber: 1.1, cholesterol: 0, omega3: 3, omega6: 50 },
+    exchange_g: 350,
+    gi: 75,
+  },
+  {
+    id: 36,
+    name: "冬瓜",
+    category: "蔬菜",
+    aliases: ["冬瓜"],
+    per100g: { calories: 10, protein: 0.3, fat: 0.0, carbs: 2.2, fiber: 0.5, cholesterol: 0, omega3: 1, omega6: 10 },
+    exchange_g: 500,
+    gi: 15,
+  },
+  {
+    id: 37,
+    name: "苦瓜",
+    category: "蔬菜",
+    aliases: ["苦瓜"],
+    per100g: { calories: 17, protein: 0.9, fat: 0.1, carbs: 3.5, fiber: 1.5, cholesterol: 0, omega3: 4, omega6: 40 },
+    exchange_g: 500,
+    gi: 20,
+  },
+  {
+    id: 38,
+    name: "芹菜",
+    category: "蔬菜",
+    aliases: ["芹菜", "西芹"],
+    per100g: { calories: 11, protein: 0.6, fat: 0.1, carbs: 2.1, fiber: 1.8, cholesterol: 0, omega3: 3, omega6: 20 },
+    exchange_g: 500,
+    gi: 15,
+  },
+  {
+    id: 39,
+    name: "生菜",
+    category: "蔬菜",
+    aliases: ["叶生菜"],
+    per100g: { calories: 13, protein: 1.2, fat: 0.2, carbs: 2.1, fiber: 1.0, cholesterol: 0, omega3: 10, omega6: 30 },
+    exchange_g: 500,
+    gi: 15,
+  },
+  {
+    id: 40,
+    name: "卷心菜",
+    category: "蔬菜",
+    aliases: ["圆白菜", "洋白菜"],
+    per100g: { calories: 17, protein: 1.0, fat: 0.1, carbs: 3.6, fiber: 2.0, cholesterol: 0, omega3: 5, omega6: 30 },
+    exchange_g: 500,
+    gi: 15,
+  },
+  {
+    id: 41,
+    name: "木耳（干）",
+    category: "蔬菜",
+    aliases: ["黑木耳"],
+    per100g: { calories: 205, protein: 10.6, fat: 1.2, carbs: 35.7, fiber: 29.9, cholesterol: 0, omega3: 30, omega6: 200 },
+    gi: 20,
+  },
+  {
+    id: 42,
+    name: "香菇",
+    category: "蔬菜",
+    aliases: ["香菇", "冬菇"],
+    per100g: { calories: 26, protein: 2.7, fat: 0.3, carbs: 4.1, fiber: 3.4, cholesterol: 0, omega3: 10, omega6: 50 },
+    gi: 20,
+  },
+
+  // ==================== 水果类 ====================
+  {
+    id: 43,
+    name: "苹果",
+    category: "水果",
+    aliases: ["苹果"],
+    per100g: { calories: 49, protein: 0.1, fat: 0.1, carbs: 12.0, fiber: 2.2, cholesterol: 0, omega3: 2, omega6: 30 },
+    exchange_g: 200,
+    gi: 36,
+  },
+  {
+    id: 44,
+    name: "香蕉",
+    category: "水果",
+    aliases: ["香蕉"],
+    per100g: { calories: 93, protein: 1.4, fat: 0.2, carbs: 22.2, fiber: 1.8, cholesterol: 0, omega3: 8, omega6: 40 },
+    exchange_g: 150,
+    gi: 52,
+  },
+  {
+    id: 45,
+    name: "橙子",
+    category: "水果",
+    aliases: ["橙", "脐橙"],
+    per100g: { calories: 42, protein: 0.8, fat: 0.1, carbs: 10.1, fiber: 2.2, cholesterol: 0, omega3: 3, omega6: 20 },
+    exchange_g: 200,
+    gi: 43,
+  },
+  {
+    id: 46,
+    name: "葡萄",
+    category: "水果",
+    aliases: ["葡萄"],
+    per100g: { calories: 44, protein: 0.5, fat: 0.1, carbs: 10.2, fiber: 0.9, cholesterol: 0, omega3: 3, omega6: 30 },
+    exchange_g: 200,
+    gi: 43,
+  },
+  {
+    id: 47,
+    name: "西瓜",
+    category: "水果",
+    aliases: ["西瓜"],
+    per100g: { calories: 26, protein: 0.5, fat: 0.1, carbs: 6.0, fiber: 0.4, cholesterol: 0, omega3: 2, omega6: 30 },
+    exchange_g: 500,
+    gi: 72,
+  },
+  {
+    id: 48,
+    name: "梨",
+    category: "水果",
+    aliases: ["梨"],
+    per100g: { calories: 43, protein: 0.3, fat: 0.1, carbs: 10.2, fiber: 3.0, cholesterol: 0, omega3: 2, omega6: 20 },
+    exchange_g: 200,
+    gi: 36,
+  },
+  {
+    id: 49,
+    name: "桃",
+    category: "水果",
+    aliases: ["桃子"],
+    per100g: { calories: 42, protein: 0.8, fat: 0.1, carbs: 9.9, fiber: 1.3, cholesterol: 0, omega3: 3, omega6: 30 },
+    exchange_g: 200,
+    gi: 40,
+  },
+  {
+    id: 50,
+    name: "草莓",
+    category: "水果",
+    aliases: ["草莓"],
+    per100g: { calories: 30, protein: 0.7, fat: 0.2, carbs: 6.5, fiber: 2.0, cholesterol: 0, omega3: 20, omega6: 80 },
+    exchange_g: 300,
+    gi: 40,
+  },
+  {
+    id: 51,
+    name: "猕猴桃",
+    category: "水果",
+    aliases: ["奇异果", "猕猴桃"],
+    per100g: { calories: 61, protein: 0.8, fat: 0.6, carbs: 13.5, fiber: 2.5, cholesterol: 0, omega3: 12, omega6: 50 },
+    exchange_g: 200,
+    gi: 52,
+  },
+  {
+    id: 52,
+    name: "火龙果",
+    category: "水果",
+    aliases: ["火龙果"],
+    per100g: { calories: 50, protein: 1.1, fat: 0.2, carbs: 11.7, fiber: 2.0, cholesterol: 0, omega3: 5, omega6: 40 },
+    gi: 40,
+  },
+
+  // ==================== 肉类 ====================
+  {
+    id: 53,
+    name: "猪肉（肥瘦）",
+    category: "肉类",
+    aliases: ["猪肉", "五花肉"],
+    per100g: { calories: 395, protein: 13.2, fat: 37.0, carbs: 2.4, fiber: 0.0, cholesterol: 80, omega3: 50, omega6: 2200 },
+    exchange_g: 25,
+    fat_source: "encourage_meat",
+    gi: 0,
+  },
+  {
+    id: 54,
+    name: "猪肉（瘦肉）",
+    category: "肉类",
+    aliases: ["里脊肉", "瘦肉"],
+    per100g: { calories: 143, protein: 21.3, fat: 6.2, carbs: 1.5, fiber: 0.0, cholesterol: 75, omega3: 30, omega6: 600 },
+    exchange_g: 50,
+    gi: 0,
+  },
+  {
+    id: 55,
+    name: "猪蹄",
+    category: "肉类",
+    aliases: ["猪蹄"],
+    per100g: { calories: 258, protein: 22.6, fat: 18.8, carbs: 0.0, fiber: 0.0, cholesterol: 77, omega3: 60, omega6: 1400 },
+    fat_source: "encourage_meat",
+    gi: 0,
+  },
+  {
+    id: 56,
+    name: "牛肉（肥瘦）",
+    category: "肉类",
+    aliases: ["牛肉"],
+    per100g: { calories: 190, protein: 19.9, fat: 11.4, carbs: 2.0, fiber: 0.0, cholesterol: 84, omega3: 60, omega6: 600 },
+    fat_source: "encourage_meat",
+    gi: 0,
+  },
+  {
+    id: 57,
+    name: "牛肉（瘦肉）",
+    category: "肉类",
+    aliases: ["牛里脊"],
+    per100g: { calories: 106, protein: 22.2, fat: 1.3, carbs: 0.0, fiber: 0.0, cholesterol: 68, omega3: 30, omega6: 200 },
+    exchange_g: 50,
+    gi: 0,
+  },
+  {
+    id: 58,
+    name: "牛腩",
+    category: "肉类",
+    aliases: ["牛腩"],
+    per100g: { calories: 177, protein: 16.2, fat: 12.0, carbs: 0.4, fiber: 0.0, cholesterol: 95, omega3: 50, omega6: 700 },
+    fat_source: "encourage_meat",
+    gi: 0,
+  },
+  {
+    id: 59,
+    name: "羊肉（肥瘦）",
+    category: "肉类",
+    aliases: ["羊肉", "羊排"],
+    per100g: { calories: 200, protein: 18.3, fat: 13.6, carbs: 0.0, fiber: 0.0, cholesterol: 82, omega3: 70, omega6: 800 },
+    exchange_g: 50,
+    fat_source: "encourage_meat",
+    gi: 0,
+  },
+  {
+    id: 60,
+    name: "鸡胸肉",
+    category: "肉类",
+    aliases: ["鸡胸", "鸡大胸"],
+    per100g: { calories: 118, protein: 23.3, fat: 2.6, carbs: 0.3, fiber: 0.0, cholesterol: 70, omega3: 30, omega6: 400 },
+    exchange_g: 50,
+    gi: 0,
+  },
+  {
+    id: 61,
+    name: "鸡腿肉",
+    category: "肉类",
+    aliases: ["鸡腿"],
+    per100g: { calories: 146, protein: 18.5, fat: 7.5, carbs: 0.0, fiber: 0.0, cholesterol: 95, omega3: 80, omega6: 1000 },
+    exchange_g: 50,
+    fat_source: "encourage_meat",
+    gi: 0,
+  },
+  {
+    id: 62,
+    name: "鸡翅",
+    category: "肉类",
+    aliases: ["鸡翅膀"],
+    per100g: { calories: 203, protein: 17.4, fat: 14.1, carbs: 0.0, fiber: 0.0, cholesterol: 113, omega3: 100, omega6: 1600 },
+    fat_source: "encourage_meat",
+    gi: 0,
+  },
+  {
+    id: 63,
+    name: "鸭肉",
+    category: "肉类",
+    aliases: ["鸭肉"],
+    per100g: { calories: 149, protein: 17.0, fat: 9.0, carbs: 0.0, fiber: 0.0, cholesterol: 84, omega3: 300, omega6: 1200 },
+    exchange_g: 50,
+    fat_source: "encourage_meat",
+    gi: 0,
+  },
+  {
+    id: 64,
+    name: "鹅肉",
+    category: "肉类",
+    aliases: ["鹅肉"],
+    per100g: { calories: 161, protein: 19.6, fat: 9.3, carbs: 0.0, fiber: 0.0, cholesterol: 82, omega3: 400, omega6: 1300 },
+    exchange_g: 50,
+    fat_source: "encourage_meat",
+    gi: 0,
+  },
+
+  // ==================== 蛋类 ====================
+  {
+    id: 65,
+    name: "鸡蛋（整）",
+    category: "蛋类",
+    aliases: ["鸡蛋", "红壳蛋"],
+    per100g: { calories: 139, protein: 13.1, fat: 8.6, carbs: 2.4, fiber: 0.0, cholesterol: 373, omega3: 100, omega6: 1600 },
+    exchange_g: 60,
+    fat_source: "encourage_egg",
+    gi: 0,
+  },
+  {
+    id: 66,
+    name: "鸡蛋白",
+    category: "蛋类",
+    aliases: ["蛋清"],
+    per100g: { calories: 45, protein: 9.6, fat: 0.1, carbs: 1.2, fiber: 0.0, cholesterol: 0, omega3: 2, omega6: 20 },
+    gi: 0,
+  },
+  {
+    id: 67,
+    name: "鸡蛋黄",
+    category: "蛋类",
+    aliases: ["蛋黄"],
+    per100g: { calories: 322, protein: 15.4, fat: 26.4, carbs: 3.1, fiber: 0.0, cholesterol: 1293, omega3: 400, omega6: 5100 },
+    fat_source: "encourage_egg",
+    gi: 0,
+  },
+  {
+    id: 68,
+    name: "鸭蛋",
+    category: "蛋类",
+    aliases: ["鸭蛋"],
+    per100g: { calories: 180, protein: 12.6, fat: 13.0, carbs: 3.1, fiber: 0.0, cholesterol: 565, omega3: 500, omega6: 2200 },
+    exchange_g: 60,
+    gi: 0,
+  },
+  {
+    id: 69,
+    name: "咸鸭蛋",
+    category: "蛋类",
+    aliases: ["咸蛋"],
+    per100g: { calories: 190, protein: 12.7, fat: 13.2, carbs: 4.8, fiber: 0.0, cholesterol: 647, omega3: 400, omega6: 2000 },
+    exchange_g: 60,
+    gi: 0,
+  },
+
+  // ==================== 鱼虾类 ====================
+  {
+    id: 70,
+    name: "草鱼",
+    category: "水产",
+    aliases: ["草鱼", "鲩鱼"],
+    per100g: { calories: 112, protein: 16.3, fat: 5.0, carbs: 0.0, fiber: 0.0, cholesterol: 86, omega3: 300, omega6: 300 },
+    exchange_g: 80,
+    fat_source: "encourage_fish",
+    gi: 0,
+  },
+  {
+    id: 71,
+    name: "鲤鱼",
+    category: "水产",
+    aliases: ["鲤鱼"],
+    per100g: { calories: 109, protein: 17.6, fat: 4.1, carbs: 0.0, fiber: 0.0, cholesterol: 84, omega3: 400, omega6: 400 },
+    exchange_g: 80,
+    fat_source: "encourage_fish",
+    gi: 0,
+  },
+  {
+    id: 72,
+    name: "鲫鱼",
+    category: "水产",
+    aliases: ["鲫鱼"],
+    per100g: { calories: 93, protein: 17.1, fat: 2.5, carbs: 0.0, fiber: 0.0, cholesterol: 130, omega3: 300, omega6: 200 },
+    exchange_g: 80,
+    fat_source: "encourage_fish",
+    gi: 0,
+  },
+  {
+    id: 73,
+    name: "黄鱼（大黄鱼）",
+    category: "水产",
+    aliases: ["黄鱼"],
+    per100g: { calories: 97, protein: 18.2, fat: 2.5, carbs: 0.0, fiber: 0.0, cholesterol: 68, omega3: 500, omega6: 100 },
+    exchange_g: 80,
+    fat_source: "encourage_fish",
+    gi: 0,
+  },
+  {
+    id: 74,
+    name: "带鱼",
+    category: "水产",
+    aliases: ["带鱼"],
+    per100g: { calories: 127, protein: 17.7, fat: 6.3, carbs: 0.0, fiber: 0.0, cholesterol: 76, omega3: 400, omega6: 200 },
+    exchange_g: 80,
+    fat_source: "encourage_fish",
+    gi: 0,
+  },
+  {
+    id: 75,
+    name: "三文鱼",
+    category: "水产",
+    aliases: ["三文鱼", "大马哈鱼"],
+    per100g: { calories: 139, protein: 17.2, fat: 7.8, carbs: 0.0, fiber: 0.0, cholesterol: 50, omega3: 2300, omega6: 200 },
+    fat_source: "encourage_fish",
+    gi: 0,
+  },
+  {
+    id: 76,
+    name: "鳕鱼",
+    category: "水产",
+    aliases: ["鳕鱼"],
+    per100g: { calories: 88, protein: 20.4, fat: 0.7, carbs: 0.0, fiber: 0.0, cholesterol: 36, omega3: 200, omega6: 20 },
+    fat_source: "encourage_fish",
+    gi: 0,
+  },
+  {
+    id: 77,
+    name: "虾（河虾）",
+    category: "水产",
+    aliases: ["河虾", "青虾"],
+    per100g: { calories: 87, protein: 16.4, fat: 2.2, carbs: 0.9, fiber: 0.0, cholesterol: 136, omega3: 100, omega6: 200 },
+    exchange_g: 80,
+    gi: 0,
+  },
+  {
+    id: 78,
+    name: "虾（对虾）",
+    category: "水产",
+    aliases: ["海虾", "明虾"],
+    per100g: { calories: 85, protein: 18.3, fat: 0.6, carbs: 1.8, fiber: 0.0, cholesterol: 152, omega3: 80, omega6: 50 },
+    exchange_g: 80,
+    gi: 0,
+  },
+  {
+    id: 79,
+    name: "螃蟹（河蟹）",
+    category: "水产",
+    aliases: ["河蟹", "大闸蟹"],
+    per100g: { calories: 103, protein: 14.9, fat: 5.0, carbs: 0.7, fiber: 0.0, cholesterol: 152, omega3: 300, omega6: 500 },
+    gi: 0,
+  },
+  {
+    id: 80,
+    name: "海参",
+    category: "水产",
+    aliases: ["海参"],
+    per100g: { calories: 71, protein: 16.5, fat: 0.2, carbs: 0.9, fiber: 0.0, cholesterol: 28, omega3: 500, omega6: 20 },
+    exchange_g: 100,
+    gi: 0,
+  },
+  {
+    id: 81,
+    name: "牡蛎（蚝）",
+    category: "水产",
+    aliases: ["生蚝", "牡蛎"],
+    per100g: { calories: 73, protein: 10.9, fat: 2.4, carbs: 2.3, fiber: 0.0, cholesterol: 50, omega3: 400, omega6: 200 },
+    gi: 0,
+  },
+
+  // ==================== 乳类 ====================
+  {
+    id: 82,
+    name: "牛奶",
+    category: "乳类",
+    aliases: ["鲜奶", "纯牛奶"],
+    per100g: { calories: 54, protein: 3.0, fat: 3.2, carbs: 3.4, fiber: 0.0, cholesterol: 15, omega3: 30, omega6: 100 },
+    fat_source: "encourage_dairy",
+    gi: 27,
+  },
+  {
+    id: 83,
+    name: "酸奶",
+    category: "乳类",
+    aliases: ["酸牛奶"],
+    per100g: { calories: 72, protein: 2.5, fat: 2.7, carbs: 9.3, fiber: 0.0, cholesterol: 15, omega3: 20, omega6: 80 },
+    fat_source: "encourage_dairy",
+    gi: 35,
+  },
+  {
+    id: 84,
+    name: "奶粉（全脂）",
+    category: "乳类",
+    aliases: ["全脂奶粉"],
+    per100g: { calories: 495, protein: 25.2, fat: 26.3, carbs: 40.0, fiber: 0.0, cholesterol: 91, omega3: 300, omega6: 900 },
+    fat_source: "encourage_dairy",
+    gi: 40,
+  },
+  {
+    id: 85,
+    name: "奶酪（干酪）",
+    category: "乳类",
+    aliases: ["芝士", "起司"],
+    per100g: { calories: 328, protein: 25.7, fat: 23.5, carbs: 3.5, fiber: 0.0, cholesterol: 81, omega3: 500, omega6: 700 },
+    fat_source: "encourage_dairy",
+    gi: 30,
+  },
+
+  // ==================== 坚果种子 ====================
+  {
+    id: 86,
+    name: "花生",
+    category: "坚果",
+    aliases: ["花生", "落花生"],
+    per100g: { calories: 563, protein: 24.8, fat: 44.3, carbs: 16.2, fiber: 5.5, cholesterol: 0, omega3: 5, omega6: 16000 },
+    exchange_g: 15,
+    fat_source: "encourage_nut",
+    gi: 14,
+  },
+  {
+    id: 87,
+    name: "核桃",
+    category: "坚果",
+    aliases: ["核桃"],
+    per100g: { calories: 627, protein: 15.2, fat: 58.2, carbs: 19.1, fiber: 6.7, cholesterol: 0, omega3: 9000, omega6: 38000 },
+    exchange_g: 200,
+    fat_source: "encourage_nut",
+    gi: 20,
+  },
+  {
+    id: 88,
+    name: "杏仁",
+    category: "坚果",
+    aliases: ["杏仁"],
+    per100g: { calories: 578, protein: 21.3, fat: 49.9, carbs: 19.5, fiber: 10.3, cholesterol: 0, omega3: 3, omega6: 24000 },
+    exchange_g: 200,
+    fat_source: "encourage_nut",
+    gi: 20,
+  },
+  {
+    id: 89,
+    name: "瓜子（葵花子）",
+    category: "坚果",
+    aliases: ["葵花籽", "瓜子"],
+    per100g: { calories: 599, protein: 22.0, fat: 53.0, carbs: 16.0, fiber: 4.8, cholesterol: 0, omega3: 5, omega6: 30000 },
+    exchange_g: 25,
+    fat_source: "encourage_nut",
+    gi: 20,
+  },
+  {
+    id: 90,
+    name: "芝麻",
+    category: "坚果",
+    aliases: ["芝麻", "黑芝麻"],
+    per100g: { calories: 573, protein: 19.1, fat: 48.0, carbs: 19.4, fiber: 9.8, cholesterol: 0, omega3: 300, omega6: 24000 },
+    fat_source: "encourage_nut",
+    gi: 20,
+  },
+
+  // ==================== 油脂类 ====================
+  {
+    id: 91,
+    name: "菜籽油",
+    category: "油脂类",
+    aliases: ["油菜籽油", "芥花油"],
+    per100g: { calories: 900, protein: 0.0, fat: 99.9, carbs: 0.0, fiber: 0.0, cholesterol: 0, omega3: 9000, omega6: 18000 },
+    exchange_g: 10,
+    fat_source: "caution_linoleic",
+    gi: 0,
+  },
+  {
+    id: 92,
+    name: "橄榄油",
+    category: "油脂类",
+    aliases: ["特级初榨橄榄油", "EVOO"],
+    per100g: { calories: 900, protein: 0.0, fat: 99.9, carbs: 0.0, fiber: 0.0, cholesterol: 0, omega3: 800, omega6: 9800 },
+    exchange_g: 10,
+    fat_source: "encourage_oil_mono",
+    gi: 0,
+  },
+  {
+    id: 93,
+    name: "椰子油",
+    category: "油脂类",
+    aliases: ["椰子油"],
+    per100g: { calories: 900, protein: 0.0, fat: 99.9, carbs: 0.0, fiber: 0.0, cholesterol: 0, omega3: 0, omega6: 1800 },
+    fat_source: "encourage_oil_mct",
+    gi: 0,
+  },
+  {
+    id: 94,
+    name: "亚麻籽油",
+    category: "油脂类",
+    aliases: ["亚麻油", "胡麻油"],
+    per100g: { calories: 900, protein: 0.0, fat: 99.9, carbs: 0.0, fiber: 0.0, cholesterol: 0, omega3: 53000, omega6: 15000 },
+    exchange_g: 10,
+    fat_source: "encourage_oil_omega3",
+    gi: 0,
+  },
+  {
+    id: 95,
+    name: "猪油",
+    category: "油脂类",
+    aliases: ["猪油", "荤油"],
+    per100g: { calories: 897, protein: 0.0, fat: 99.6, carbs: 0.0, fiber: 0.0, cholesterol: 97, omega3: 100, omega6: 1800 },
+    fat_source: "encourage_animal_fat",
+    gi: 0,
+  },
+  {
+    id: 96,
+    name: "芝麻油",
+    category: "油脂类",
+    aliases: ["香油", "麻油"],
+    per100g: { calories: 898, protein: 0.0, fat: 99.7, carbs: 0.0, fiber: 0.0, cholesterol: 0, omega3: 300, omega6: 30000 },
+    exchange_g: 10,
+    fat_source: "caution_linoleic",
+    gi: 0,
+  },
+  {
+    id: 97,
+    name: "大豆油",
+    category: "油脂类",
+    aliases: ["豆油"],
+    per100g: { calories: 900, protein: 0.0, fat: 99.9, carbs: 0.0, fiber: 0.0, cholesterol: 0, omega3: 7000, omega6: 50000 },
+    exchange_g: 10,
+    fat_source: "caution_linoleic",
+    gi: 0,
+  },
+  {
+    id: 98,
+    name: "花生油",
+    category: "油脂类",
+    aliases: ["花生油"],
+    per100g: { calories: 900, protein: 0.0, fat: 99.9, carbs: 0.0, fiber: 0.0, cholesterol: 0, omega3: 10, omega6: 32000 },
+    exchange_g: 10,
+    fat_source: "caution_linoleic",
+    gi: 0,
+  },
+
+  // ==================== 常见菜品 ====================
+  {
+    id: 99,
+    name: "番茄炒蛋",
+    category: "菜品",
+    aliases: ["西红柿炒鸡蛋"],
+    per100g: { calories: 107, protein: 6.5, fat: 7.0, carbs: 4.5, fiber: 0.5, cholesterol: 160, omega3: 100, omega6: 1500 },
+    exchange_g: 500,
+    gi: 30,
+  },
+  {
+    id: 100,
+    name: "红烧肉",
+    category: "菜品",
+    aliases: ["红烧肉"],
+    per100g: { calories: 271, protein: 8.2, fat: 24.7, carbs: 4.5, fiber: 0.2, cholesterol: 65, omega3: 100, omega6: 4000 },
+    gi: 0,
+  },
+  {
+    id: 101,
+    name: "清蒸鱼",
+    category: "菜品",
+    aliases: ["清蒸鲈鱼", "清蒸桂鱼"],
+    per100g: { calories: 95, protein: 17.0, fat: 2.5, carbs: 0.8, fiber: 0.0, cholesterol: 58, omega3: 400, omega6: 150 },
+    gi: 0,
+  },
+  {
+    id: 102,
+    name: "宫保鸡丁",
+    category: "菜品",
+    aliases: ["宫保鸡丁"],
+    per100g: { calories: 167, protein: 13.0, fat: 10.5, carbs: 5.8, fiber: 0.8, cholesterol: 95, omega3: 100, omega6: 2500 },
+    gi: 30,
+  },
+  {
+    id: 103,
+    name: "糖醋排骨",
+    category: "菜品",
+    aliases: ["糖醋排骨"],
+    per100g: { calories: 164, protein: 10.5, fat: 10.2, carbs: 8.5, fiber: 0.3, cholesterol: 70, omega3: 80, omega6: 2000 },
+    gi: 40,
+  },
+  {
+    id: 104,
+    name: "鱼香肉丝",
+    category: "菜品",
+    aliases: ["鱼香肉丝"],
+    per100g: { calories: 142, protein: 9.5, fat: 8.8, carbs: 5.8, fiber: 0.8, cholesterol: 55, omega3: 60, omega6: 1500 },
+    gi: 30,
+  },
+  {
+    id: 105,
+    name: "麻婆豆腐",
+    category: "菜品",
+    aliases: ["麻婆豆腐"],
+    per100g: { calories: 128, protein: 7.5, fat: 9.0, carbs: 4.5, fiber: 0.6, cholesterol: 8, omega3: 100, omega6: 2200 },
+    gi: 25,
+  },
+  // ==================== 补充：低碳水主食原料 ====================
+  {
+    id: 106,
+    name: "小米（生）",
+    category: "谷类",
+    aliases: ["小米", "粟米"],
+    per100g: { calories: 361, protein: 9.0, fat: 3.1, carbs: 75.1, fiber: 1.6, cholesterol: 0, omega3: 20, omega6: 1200 },
+    exchange_g: 25,
+    gi: 71,
+  },
+  {
+    id: 107,
+    name: "小米粥（熟）",
+    category: "谷类",
+    aliases: ["小米粥"],
+    per100g: { calories: 46, protein: 1.4, fat: 0.7, carbs: 8.4, fiber: 0, cholesterol: 0, omega3: 2, omega6: 140 },
+    exchange_g: 200,
+    gi: 62,
+  },
+  {
+    id: 108,
+    name: "燕麦片（生）",
+    category: "谷类",
+    aliases: ["燕麦", "燕麦片", "麦片"],
+    per100g: { calories: 381, protein: 15.0, fat: 6.7, carbs: 66.9, fiber: 5.3, cholesterol: 0, omega3: 80, omega6: 2200 },
+    exchange_g: 25,
+    gi: 55,
+  },
+  {
+    id: 109,
+    name: "燕麦粥（熟）",
+    category: "谷类",
+    aliases: ["燕麦粥", "麦片粥"],
+    per100g: { calories: 85, protein: 2.5, fat: 0.1, carbs: 19.2, fiber: 1.5, cholesterol: 0, omega3: 2, omega6: 60 },
+    exchange_g: 120,
+    gi: 50,
+  },
+  {
+    id: 110,
+    name: "荞麦面（干）",
+    category: "谷类",
+    aliases: ["荞麦面", "荞麦挂面"],
+    per100g: { calories: 340, protein: 11.3, fat: 2.8, carbs: 70.2, fiber: 4.5, cholesterol: 0, omega3: 20, omega6: 800 },
+    exchange_g: 25,
+    gi: 59,
+  },
+  {
+    id: 111,
+    name: "荞麦面条（熟）",
+    category: "谷类",
+    aliases: ["荞麦面(熟)", "煮荞麦面"],
+    per100g: { calories: 114, protein: 4.8, fat: 0.8, carbs: 23.5, fiber: 1.9, cholesterol: 0, omega3: 8, omega6: 280 },
+    exchange_g: 75,
+    gi: 59,
+  },
+  {
+    id: 112,
+    name: "全麦面包",
+    category: "谷类",
+    aliases: ["全麦吐司", "全麦包"],
+    per100g: { calories: 246, protein: 8.5, fat: 3.5, carbs: 46.1, fiber: 6.0, cholesterol: 0, omega3: 30, omega6: 600 },
+    exchange_g: 35,
+    gi: 50,
+  },
+  {
+    id: 113,
+    name: "黑米（生）",
+    category: "谷类",
+    aliases: ["黑米", "紫米"],
+    per100g: { calories: 341, protein: 9.4, fat: 2.5, carbs: 72.2, fiber: 3.9, cholesterol: 0, omega3: 30, omega6: 900 },
+    exchange_g: 25,
+    gi: 55,
+  },
+  {
+    id: 114,
+    name: "黑米饭（熟）",
+    category: "谷类",
+    aliases: ["黑米饭", "紫米饭"],
+    per100g: { calories: 122, protein: 3.0, fat: 0.8, carbs: 25.8, fiber: 1.4, cholesterol: 0, omega3: 10, omega6: 300 },
+    exchange_g: 75,
+    gi: 55,
+  },
+  {
+    id: 115,
+    name: "藜麦（生）",
+    category: "谷类",
+    aliases: ["藜麦", "奎奴亚藜"],
+    per100g: { calories: 368, protein: 14.1, fat: 6.1, carbs: 64.2, fiber: 7.0, cholesterol: 0, omega3: 80, omega6: 2800 },
+    exchange_g: 25,
+    gi: 35,
+  },
+  {
+    id: 116,
+    name: "藜麦饭（熟）",
+    category: "谷类",
+    aliases: ["藜麦饭", "煮藜麦"],
+    per100g: { calories: 120, protein: 4.4, fat: 1.9, carbs: 21.3, fiber: 2.8, cholesterol: 0, omega3: 25, omega6: 900 },
+    exchange_g: 80,
+    gi: 35,
+  },
+  {
+    id: 117,
+    name: "糙米（生）",
+    category: "谷类",
+    aliases: ["糙米", "棕色米"],
+    per100g: { calories: 348, protein: 7.7, fat: 2.7, carbs: 73.0, fiber: 3.4, cholesterol: 0, omega3: 30, omega6: 1000 },
+    exchange_g: 25,
+    gi: 55,
+  },
+  {
+    id: 118,
+    name: "糙米饭（熟）",
+    category: "谷类",
+    aliases: ["糙米饭"],
+    per100g: { calories: 124, protein: 2.7, fat: 0.9, carbs: 26.1, fiber: 1.2, cholesterol: 0, omega3: 10, omega6: 350 },
+    exchange_g: 75,
+    gi: 55,
+  },
+  {
+    id: 119,
+    name: "紫薯（生）",
+    category: "薯类",
+    aliases: ["紫薯"],
+    per100g: { calories: 86, protein: 1.6, fat: 0.3, carbs: 20.1, fiber: 2.5, cholesterol: 0, omega3: 2, omega6: 40 },
+    exchange_g: 100,
+    gi: 55,
+  },
+  // ==================== 补充：低碳水蔬菜 ====================
+  {
+    id: 120,
+    name: "油麦菜",
+    category: "蔬菜",
+    aliases: ["莜麦菜", "苦菜"],
+    per100g: { calories: 12, protein: 1.1, fat: 0.4, carbs: 2.1, fiber: 0.6, cholesterol: 0, omega3: 5, omega6: 20 },
+    gi: 15,
+  },
+  {
+    id: 121,
+    name: "空心菜",
+    category: "蔬菜",
+    aliases: ["蕹菜", "藤藤菜", "竹叶菜"],
+    per100g: { calories: 23, protein: 2.2, fat: 0.3, carbs: 3.6, fiber: 1.4, cholesterol: 0, omega3: 5, omega6: 30 },
+    gi: 15,
+  },
+  {
+    id: 122,
+    name: "芦笋",
+    category: "蔬菜",
+    aliases: ["石刁柏", "龙须菜"],
+    per100g: { calories: 19, protein: 2.6, fat: 0.1, carbs: 3.3, fiber: 1.9, cholesterol: 0, omega3: 2, omega6: 20 },
+    gi: 15,
+  },
+  {
+    id: 123,
+    name: "秋葵",
+    category: "蔬菜",
+    aliases: ["黄秋葵", "羊角豆"],
+    per100g: { calories: 25, protein: 1.8, fat: 0.2, carbs: 6.2, fiber: 3.9, cholesterol: 0, omega3: 10, omega6: 60 },
+    gi: 20,
+  },
+  {
+    id: 124,
+    name: "娃娃菜",
+    category: "蔬菜",
+    aliases: ["迷你白菜"],
+    per100g: { calories: 13, protein: 1.0, fat: 0.1, carbs: 2.4, fiber: 0.6, cholesterol: 0, omega3: 3, omega6: 15 },
+    gi: 15,
+  },
+  {
+    id: 125,
+    name: "菜心",
+    category: "蔬菜",
+    aliases: ["菜心", "菜薹"],
+    per100g: { calories: 19, protein: 1.8, fat: 0.4, carbs: 2.4, fiber: 1.2, cholesterol: 0, omega3: 5, omega6: 25 },
+    gi: 15,
+  },
+  // ==================== 补充：其他 ====================
+  {
+    id: 126,
+    name: "燕麦片（果仁、甜）",
+    category: "谷类",
+    aliases: ["甜燕麦片", "坚果燕麦片"],
+    per100g: { calories: 418, protein: 8.9, fat: 11.1, carbs: 73.5, fiber: 6.9, cholesterol: 0, omega3: 80, omega6: 2200 },
+    exchange_g: 25,
+    gi: 55,
+  }
+];
+
+/**
+ * 搜索食物（支持名称和别名模糊搜索）
+ * @param {string} query - 搜索关键词
+ * @param {string} category - 可选，按分类筛选
+ * @returns {Array} 匹配的食物列表
+ */
+function searchFood(query, category = null) {
+  const q = query.toLowerCase().trim();
+  let results = FOOD_DATABASE.filter(food => {
+    // 匹配名称
+    if (food.name.toLowerCase().includes(q)) return true;
+    // 匹配别名
+    if (food.aliases && food.aliases.some(a => a.toLowerCase().includes(q))) return true;
+    return false;
+  });
+  
+  // 按分类筛选
+  if (category) {
+    results = results.filter(food => food.category === category);
+  }
+  
+  return results;
+}
+
+/**
+ * 根据ID获取食物
+ * @param {number} id - 食物ID
+ * @returns {Object|null} 食物对象
+ */
+function getFoodById(id) {
+  return FOOD_DATABASE.find(food => food.id === id) || null;
+}
+
+/**
+ * 获取所有分类
+ * @returns {Array} 分类列表
+ */
+function getCategories() {
+  const cats = [...new Set(FOOD_DATABASE.map(f => f.category))];
+  return cats.sort();
+}
+
+/**
+ * 按分类获取食物
+ * @param {string} category - 分类名称
+ * @returns {Array} 该分类的食物列表
+ */
+function getFoodsByCategory(category) {
+  return FOOD_DATABASE.filter(food => food.category === category);
+}
+
+/**
+ * 计算吃一定量食物的营养成分
+ * @param {Object} food - 食物对象
+ * @param {number} grams - 摄入量（克）
+ * @returns {Object} 营养成分
+ */
+function calcNutrition(food, grams) {
+  const factor = grams / 100;
+  return {
+    calories: Math.round(food.per100g.calories * factor),
+    protein: Math.round(food.per100g.protein * factor * 10) / 10,
+    fat: Math.round(food.per100g.fat * factor * 10) / 10,
+    carbs: Math.round(food.per100g.carbs * factor * 10) / 10,
+    fiber: Math.round(food.per100g.fiber * factor * 10) / 10,
+    cholesterol: Math.round(food.per100g.cholesterol * factor),
+    omega3: Math.round(food.per100g.omega3 * factor),
+    omega6: Math.round(food.per100g.omega6 * factor)
+  };
+}
+
+/**
+ * 计算omega3与omega6的比例
+ * @param {number} omega3 - 欧米伽-3含量（mg）
+ * @param {number} omega6 - 欧米伽-6含量（mg）
+ * @returns {Object} 比例信息和建议
+ */
+function calcOmegaRatio(omega3, omega6) {
+  if (omega3 === 0 || omega6 === 0) {
+    return {
+      ratio: null,
+      ratioText: omega3 === 0 ? '无omega-3' : '无omega-6',
+      status: 'warning',
+      suggestion: '建议增加深海鱼或亚麻籽油摄入'
+    };
+  }
+  
+  const ratio = omega6 / omega3;
+  const ratioText = `1:${Math.round(ratio * 10) / 10}`;
+  
+  // 夏萌建议：1:4 ~ 1:6
+  let status = 'good';
+  let suggestion = '比例良好';
+  
+  if (ratio > 6) {
+    status = 'warning';
+    suggestion = 'omega-6偏高，建议减少植物油，增加深海鱼或亚麻籽油';
+  } else if (ratio < 4) {
+    status = 'warning';
+    suggestion = 'omega-3偏高，注意整体脂肪摄入量';
+  }
+  
+  return { ratio, ratioText, status, suggestion };
+}

@@ -1,0 +1,697 @@
+/* ============================================
+   管理员后台样式 - 知识库管理 & 扫盲学习台
+   ============================================ */
+
+/* Admin Section */
+.admin-section {
+    display: none;
+}
+
+.admin-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.admin-header h2 {
+    margin: 0;
+    font-size: 1.2rem;
+    color: var(--primary-dark);
+}
+
+.admin-user-info {
+    font-size: 0.8rem;
+    color: var(--text-light);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.admin-header-actions {
+    display: flex;
+    gap: 8px;
+}
+
+/* Admin Tabs */
+.admin-tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 20px;
+    border-bottom: 2px solid var(--border);
+    padding-bottom: 0;
+    flex-wrap: wrap;
+}
+
+.admin-tab-btn {
+    padding: 10px 18px;
+    border: none;
+    background: transparent;
+    color: var(--text-light);
+    cursor: pointer;
+    font-size: 0.9rem;
+    border-bottom: 3px solid transparent;
+    margin-bottom: -2px;
+    transition: all 0.2s;
+    border-radius: 8px 8px 0 0;
+}
+
+.admin-tab-btn:hover {
+    color: var(--primary);
+    background: #f0f9f4;
+}
+
+.admin-tab-btn.active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+    font-weight: bold;
+    background: #f0f9f4;
+}
+
+.admin-tab-content {
+    display: none;
+}
+
+.admin-tab-content.active {
+    display: block;
+}
+
+/* Admin Buttons */
+.admin-btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.admin-btn-primary {
+    background: var(--primary);
+    color: white;
+}
+
+.admin-btn-primary:hover {
+    background: var(--primary-dark);
+    transform: translateY(-1px);
+}
+
+.admin-btn-secondary {
+    background: white;
+    color: var(--primary);
+    border: 1.5px solid var(--primary);
+}
+
+.admin-btn-secondary:hover {
+    background: var(--bg);
+}
+
+.admin-btn-danger {
+    background: var(--danger);
+    color: white;
+}
+
+.admin-btn-danger:hover {
+    background: #a93226;
+}
+
+.admin-btn-sm {
+    padding: 5px 12px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: all 0.2s;
+}
+
+.admin-btn-edit {
+    background: #e8f5ed;
+    color: var(--primary);
+}
+
+.admin-btn-edit:hover {
+    background: var(--primary);
+    color: white;
+}
+
+.admin-btn-del {
+    background: #fde8e8;
+    color: var(--danger);
+}
+
+.admin-btn-del:hover {
+    background: var(--danger);
+    color: white;
+}
+
+.admin-btn-export {
+    background: #fff8e1;
+    color: #f57f17;
+    border: 1px solid #ffe082;
+}
+
+.admin-btn-export:hover {
+    background: #f57f17;
+    color: white;
+}
+
+/* Toolbar */
+.admin-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+/* Knowledge Form */
+.admin-knowledge-form {
+    background: #f9fdfb;
+    border: 2px solid var(--primary-light);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 16px;
+}
+
+.admin-knowledge-form h3 {
+    color: var(--primary-dark);
+    font-size: 1rem;
+    margin-bottom: 14px;
+}
+
+.admin-form-group {
+    margin-bottom: 12px;
+}
+
+.admin-form-group label {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--text-light);
+    margin-bottom: 4px;
+    font-weight: 500;
+}
+
+.admin-form-group input[type="text"],
+.admin-form-group textarea,
+.admin-form-group select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.95rem;
+    transition: border-color 0.2s;
+    font-family: inherit;
+    box-sizing: border-box;
+}
+
+.admin-form-group input[type="text"]:focus,
+.admin-form-group textarea:focus,
+.admin-form-group select:focus {
+    outline: none;
+    border-color: var(--primary);
+}
+
+.admin-form-group textarea {
+    min-height: 120px;
+    resize: vertical;
+}
+
+.admin-form-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 14px;
+}
+
+/* Knowledge List (Grid) */
+.admin-knowledge-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.admin-knowledge-item {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    transition: all 0.2s;
+}
+
+.admin-knowledge-item:hover {
+    border-color: var(--primary-light);
+    box-shadow: 0 2px 8px rgba(45, 122, 79, 0.1);
+}
+
+.admin-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.admin-item-cat {
+    font-size: 0.75rem;
+    padding: 2px 8px;
+    border-radius: 10px;
+    display: inline-block;
+}
+
+.cat-concept {
+    background: #e3f2fd;
+    color: #1565c0;
+}
+
+.cat-formula {
+    background: #fff3e0;
+    color: #e65100;
+}
+
+.admin-item-order {
+    font-size: 0.75rem;
+    color: var(--text-light);
+}
+
+.admin-item-title {
+    font-weight: bold;
+    font-size: 0.95rem;
+    color: var(--text);
+    margin-bottom: 6px;
+}
+
+.admin-item-preview {
+    font-size: 0.8rem;
+    color: var(--text-light);
+    line-height: 1.4;
+    margin-bottom: 10px;
+}
+
+.admin-item-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.admin-empty {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--text-light);
+    font-size: 0.9rem;
+    background: var(--bg);
+    border-radius: 10px;
+}
+
+/* Display Settings */
+.admin-display-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.admin-display-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+#displayCount {
+    font-size: 0.85rem;
+    color: var(--text-light);
+    font-weight: 500;
+}
+
+/* Checkbox List */
+.admin-check-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.admin-check-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    transition: all 0.2s;
+    background: white;
+}
+
+.admin-check-item:hover {
+    border-color: var(--primary-light);
+}
+
+.admin-check-item.checked {
+    border-color: var(--primary);
+    background: #f0f9f4;
+}
+
+.admin-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    flex: 1;
+}
+
+.admin-checkbox {
+    width: 20px;
+    height: 20px;
+    accent-color: var(--primary);
+    cursor: pointer;
+}
+
+.admin-check-content {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.admin-check-cat {
+    font-size: 1.1rem;
+}
+
+.admin-check-title {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text);
+}
+
+.admin-check-status {
+    font-size: 0.8rem;
+    white-space: nowrap;
+    margin-left: 12px;
+}
+
+.admin-check-status.on {
+    color: var(--success);
+}
+
+.admin-check-status.off {
+    color: var(--text-light);
+}
+
+/* Login Modal */
+.admin-login-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+}
+
+.admin-modal {
+    background: white;
+    border-radius: 14px;
+    padding: 28px;
+    width: 380px;
+    max-width: 90%;
+    position: relative;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+}
+
+.admin-modal h3 {
+    font-size: 1.2rem;
+    color: var(--primary-dark);
+    margin-bottom: 6px;
+}
+
+.admin-modal-desc {
+    font-size: 0.85rem;
+    color: var(--text-light);
+    margin-bottom: 20px;
+}
+
+.admin-modal-close {
+    position: absolute;
+    top: 12px;
+    right: 14px;
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    color: var(--text-light);
+    cursor: pointer;
+    padding: 4px;
+    line-height: 1;
+}
+
+.admin-modal-close:hover {
+    color: var(--text);
+}
+
+.admin-form-group {
+    margin-bottom: 14px;
+}
+
+.admin-form-group label {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--text-light);
+    margin-bottom: 4px;
+}
+
+.admin-form-group input[type="email"],
+.admin-form-group input[type="password"] {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.95rem;
+    transition: border-color 0.2s;
+    box-sizing: border-box;
+}
+
+.admin-form-group input[type="email"]:focus,
+.admin-form-group input[type="password"]:focus {
+    outline: none;
+    border-color: var(--primary);
+}
+
+.admin-form-error {
+    color: var(--danger);
+    font-size: 0.85rem;
+    margin-bottom: 12px;
+    padding: 8px 12px;
+    background: #fde8e8;
+    border-radius: 6px;
+}
+
+.admin-modal-footer {
+    font-size: 0.75rem;
+    color: var(--text-light);
+    margin-top: 14px;
+    text-align: center;
+}
+
+/* Toast */
+.admin-toast {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    z-index: 3000;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    transition: all 0.3s;
+    animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+    from { transform: translateX(-50%) translateY(-20px); opacity: 0; }
+    to { transform: translateX(-50%) translateY(0); opacity: 1; }
+}
+
+.admin-toast-success {
+    background: #27ae60;
+    color: white;
+}
+
+.admin-toast-error {
+    background: #c0392b;
+    color: white;
+}
+
+/* ============================================
+   用户等级管理
+   ============================================ */
+
+.user-level-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    max-width: 600px;
+}
+
+.user-level-card {
+    background: white;
+    border: 1.5px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+    transition: all 0.2s;
+}
+
+.user-level-card:hover {
+    border-color: var(--primary-light);
+    box-shadow: 0 3px 12px rgba(45,122,79,0.1);
+}
+
+.user-level-avatar {
+    font-size: 2.4rem;
+    margin-bottom: 6px;
+    line-height: 1.2;
+}
+
+.user-level-name {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 12px;
+}
+
+.user-level-select select {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.85rem;
+    background: white;
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.user-level-select select:focus {
+    border-color: var(--primary);
+}
+
+.user-level-days {
+    font-size: 0.8rem;
+    color: var(--text-light);
+    margin-top: 8px;
+}
+
+@media (max-width: 500px) {
+    .user-level-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ============================================
+   学习模式（家人查看页面）
+   ============================================ */
+
+.learn-section {
+    animation: fadeIn 0.4s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.learn-loading {
+    text-align: center;
+    padding: 60px 20px;
+    font-size: 1.2rem;
+    color: var(--text-light);
+}
+
+.learn-card {
+    border-left: 4px solid var(--primary);
+    transition: all 0.2s;
+}
+
+.learn-card:hover {
+    box-shadow: 0 4px 16px rgba(45, 122, 79, 0.12);
+}
+
+.learn-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.learn-card-number {
+    font-size: 0.8rem;
+    color: var(--text-light);
+    font-weight: 500;
+    background: var(--bg);
+    padding: 2px 10px;
+    border-radius: 10px;
+}
+
+.learn-card-cat {
+    font-size: 0.8rem;
+    color: var(--text-light);
+}
+
+.learn-card-title {
+    font-size: 1.15rem;
+    color: var(--primary-dark);
+    margin-bottom: 12px;
+}
+
+.learn-card-content {
+    font-size: 0.9rem;
+    line-height: 1.7;
+    color: var(--text);
+}
+
+.learn-card-content p {
+    margin-bottom: 10px;
+}
+
+.learn-card-content br {
+    content: "";
+    display: block;
+    margin-bottom: 4px;
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+    .admin-knowledge-grid {
+        grid-template-columns: 1fr;
+    }
+    .admin-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .admin-header-actions {
+        width: 100%;
+    }
+    .admin-tabs {
+        flex-direction: column;
+        gap: 2px;
+    }
+    .admin-tab-btn {
+        border-bottom: 2px solid transparent;
+        border-radius: 8px;
+        margin-bottom: 0;
+    }
+    .admin-tab-btn.active {
+        background: var(--primary);
+        color: white;
+        border-bottom-color: var(--primary);
+    }
+    .admin-display-toolbar {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .admin-check-content {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 2px;
+    }
+}

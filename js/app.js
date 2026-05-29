@@ -1,0 +1,3032 @@
+/**
+ * 低碳水营养计算器 - 主逻辑
+ * 基于夏萌《低碳水：适合国人体质的慢病营养策略》
+ *
+ * 公式说明（夏萌原书方法）：
+ * - 标准体重(kg) = 身高(cm) - 105
+ * - 摄入总能量 = 目标体重 × 能量系数 × 年龄系数
+ * - 目标体重：BMI<28用标准体重，BMI≥28用调节体重=（真实体重+标准体重）/2
+ * - 能量系数：卧床25 / 轻体力30 / 中体力35 / 重体力40 (kcal/kg)
+ * - 年龄系数：50岁起每10年降0.1，最低0.4
+ */
+
+// ============================================
+// 全局状态管理（支持多用户数据隔离）
+// ============================================
+
+const MAX_USERS = 4;
+let users = [{}, {}, {}, {}]; // 4个独立用户数据
+let currentUser = 0;
+
+// ============================================
+// 用户等级系统
+// ============================================
+
+const USER_LEVELS = {
+    free: { label: '普通', days: 90, icon: '⭐' },
+    vip: { label: 'VIP', days: 180, icon: '🌙' },
+    plus: { label: 'Plus', days: 365, icon: '☀️' },
+    permanent: { label: '永久', days: -1, icon: '👑' }
+};
+
+/**
+ * 获取某用户的等级 key
+ * @param {number} userIdx - 用户索引 0-3
+ * @returns {string} 'free' | 'vip' | 'plus' | 'permanent'
+ */
+function getUserLevel(userIdx) {
+    if (userIdx === undefined) userIdx = currentUser;
+    try {
+        const key = `nutri_user_level_${userIdx}`;
+        return localStorage.getItem(key) || 'free';
+    } catch { return 'free'; }
+}
+
+/**
+ * 保存某用户的等级
+ * @param {number} userIdx
+ * @param {string} level
+ */
+function saveUserLevel(userIdx, level) {
+    const key = `nutri_user_level_${userIdx}`;
+    localStorage.setItem(key, level);
+}
+
+/**
+ * 获取某用户的等级详情对象
+ */
+function getUserLevelInfo(userIdx) {
+    const level = getUserLevel(userIdx);
+    return USER_LEVELS[level] || USER_LEVELS.free;
+}
+
+/**
+ * 获取某用户的保留天数
+ * @param {number} userIdx
+ * @returns {number} -1 表示永久
+ */
+function getRetentionDays(userIdx) {
+    const info = getUserLevelInfo(userIdx);
+    return info.days;
+}
+
+// ============================================
+// localStorage 存储模块（能量补偿 + 打卡）
+// ============================================
+
+/**
+ * 获取当前用户的 localStorage key 前缀
+ */
+function getStorageKey(base) {
+    return `nutri_${base}_${currentUser}`;
+}
+
+// ---- 历史方案记录 ----
+
+/**
+ * 获取当前用户的历史记录数组
+ * @returns {Array} [{date, plan, status, actual}]
+ */
+function getMealHistory() {
+    try {
+        const key = getStorageKey('meal_history');
+        return JSON.parse(localStorage.getItem(key) || '[]');
+    } catch { return []; }
+}
+
+/**
+ * 保存历史记录
+ * @param {Array} history
+ */
+function saveMealHistory(history) {
+    localStorage.setItem(getStorageKey('meal_history'), JSON.stringify(history));
+}
+
+/**
+ * 保存方案后写入历史（保留所有记录，不过期）
+ */
+
+function savePlanToHistory(mealPlan) {
+    const today = new Date().toISOString().slice(0, 10);
+    const history = getMealHistory();
+    const existing = history.find(h => h.date === today);
+    if (existing) {
+        existing.plan = mealPlan;
+    } else {
+        history.push({ date: today, plan: mealPlan, status: null, actual: null });
+    }
+    saveMealHistory(history);
+    cleanOldHistory();
+}
+
+/**
+ * 清理超出保留期限的历史数据
+ */
+function cleanOldHistory() {
+    const history = getMealHistory();
+    if (!history.length) return;
+    const days = getRetentionDays(currentUser);
+    if (days < 0) return; // 永久保留，不清除
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - days);
+    const cutoffStr = cutoff.toISOString().slice(0, 10);
+    const filtered = history.filter(h => h.date >= cutoffStr);
+    if (filtered.length < history.length) {
+        saveMealHistory(filtered);
+    }
+}
+
+/**
+ * 获取某日期的历史记录
+ * @param {string} dateStr - 'YYYY-MM-DD'
+ * @returns {object|null}
+ */
+function getDayHistory(dateStr) {
+    const history = getMealHistory();
+    return history.find(h => h.date === dateStr) || null;
+}
+
+/**
+ * 更新某日期的打卡数据
+ * @param {string} dateStr
+ * @param {object} actual - {energy, protein, carb, fat}
+ */
+function updateCheckInData(dateStr, actual) {
+    const history = getMealHistory();
+    const record = history.find(h => h.date === dateStr);
+    if (record) {
+        record.actual = actual;
+        record.status = 'checked';
+        saveMealHistory(history);
+    }
+}
+
+// ---- 打卡状态 ----
+
+/**
+ * 获取打卡状态对象
+ * @returns {object} {'YYYY-MM-DD': true/false}
+ */
+function getCheckinData() {
+    try {
+        const key = getStorageKey('checkin');
+        return JSON.parse(localStorage.getItem(key) || '{}');
+    } catch { return {}; }
+}
+
+function saveCheckinData(data) {
+    localStorage.setItem(getStorageKey('checkin'), JSON.stringify(data));
+}
+
+/**
+ * 标记某天已打卡
+ * @param {string} dateStr
+ */
+function markCheckin(dateStr) {
+    const data = getCheckinData();
+    data[dateStr] = true;
+    saveCheckinData(data);
+}
+
+/**
+ * 检查某天是否已打卡
+ * @param {string} dateStr
+ * @returns {boolean}
+ */
+function isCheckedIn(dateStr) {
+    const data = getCheckinData();
+    return !!data[dateStr];
+}
+
+/**
+ * 获取昨天日期字符串
+ * @returns {string}
+ */
+function getYesterdayStr() {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return d.toISOString().slice(0, 10);
+}
+
+// ---- 负债队列（能量补偿） ----
+
+/**
+ * 获取当前用户的负债队列
+ * @returns {Array} [{day: 'YYYY-MM-DD', kcal: number}]
+ */
+function getDebtQueue() {
+    try {
+        const key = getStorageKey('debt');
+        return JSON.parse(localStorage.getItem(key) || '[]');
+    } catch { return []; }
+}
+
+function saveDebtQueue(queue) {
+    localStorage.setItem(getStorageKey('debt'), JSON.stringify(queue));
+}
+
+/**
+ * 挂一笔负债到指定日期
+ * @param {string} targetDay - 'YYYY-MM-DD'
+ * @param {number} kcal - 负债值（负=吃少了要多补；正=吃多了要少补）
+ */
+function addDebt(targetDay, kcal) {
+    const queue = getDebtQueue();
+    queue.push({ day: targetDay, kcal: kcal });
+    saveDebtQueue(queue);
+}
+
+/**
+ * 计算今天的总补偿值（封顶±15%）
+ * @param {number} baseline - 基准TDEE
+ * @returns {number} 调整值（负=今天少吃；正=今天多吃）
+ */
+function getTodayCompensation(baseline) {
+    const limit = Math.round(baseline * 0.15); // ±15%上限
+    const today = new Date().toISOString().slice(0, 10);
+    let queue = getDebtQueue();
+    // 筛选今天到期的负债
+    let total = 0;
+    const remaining = [];
+    for (const item of queue) {
+        if (item.day === today) {
+            total += item.kcal;
+        } else if (item.day > today) {
+            remaining.push(item);
+        }
+        // 今天之前的已过期，直接扔掉
+    }
+    // 封顶
+    const compensation = Math.max(-limit, Math.min(limit, total));
+    // 超出部分滚到明天
+    const overflow = total - compensation;
+    if (overflow !== 0) {
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        remaining.push({ day: tomorrow.toISOString().slice(0, 10), kcal: overflow });
+    }
+    saveDebtQueue(remaining);
+    return compensation;
+}
+
+/**
+ * 周一清零处理
+ * @param {number} baseline - 基准TDEE
+ * @returns {string|null} 上周总结文案（如无可返回null）
+ */
+function weeklyReset(baseline) {
+    const now = new Date();
+    if (now.getDay() !== 1) return null; // 不是周一
+
+    const key = getStorageKey('last_reset');
+    const lastReset = localStorage.getItem(key);
+    const todayStr = now.toISOString().slice(0, 10);
+    if (lastReset === todayStr) return null; // 今天已处理过了
+
+    // 计算上周总负债（未完成的）
+    const queue = getDebtQueue();
+    const totalKcal = queue.reduce((sum, item) => sum + item.kcal, 0);
+
+    // 清空负债
+    saveDebtQueue([]);
+    localStorage.setItem(key, todayStr);
+
+    if (Math.abs(totalKcal) < 10) return null; // 忽略微小偏差
+
+    if (totalKcal < 0) {
+        return `上周能量缺口约 ${Math.round(-totalKcal)} kcal，记得关注饮食摄入。`;
+    } else {
+        return `上周能量超出约 ${Math.round(totalKcal)} kcal，建议适当控制。`;
+    }
+}
+
+// ---- 把偏差拆2份挂债 ----
+
+/**
+ * 提交昨日打卡数据 → 算偏差 → 拆2份挂债
+ * @param {number} actualEnergy - 实际摄入能量
+ * @param {number} baseline - 基准TDEE
+ * @param {string} checkinDate - 被打卡的日期 'YYYY-MM-DD'
+ */
+function submitDeviation(actualEnergy, baseline, checkinDate) {
+    const deviation = actualEnergy - baseline; // 正=吃多；负=吃少
+    if (Math.abs(deviation) < 10) return; // 忽略微小偏差
+
+    const half = Math.round(deviation / 2);
+    const refDate = new Date(checkinDate + 'T12:00:00'); // 以打卡日期为基准
+    const d1 = new Date(refDate); d1.setDate(d1.getDate() + 1);
+    const d2 = new Date(refDate); d2.setDate(d2.getDate() + 2);
+    const d1Str = d1.toISOString().slice(0, 10);
+    const d2Str = d2.toISOString().slice(0, 10);
+
+    addDebt(d1Str, half); // D+1补一半（= 今天）
+    addDebt(d2Str, half); // D+2补一半（= 明天）
+}
+
+// ============================================
+// 低碳水饮食配比设置
+// ============================================
+
+// 档位配置（从Supabase加载）
+let lowCarbProfiles = [];
+
+// 当前选择的模式：'newbie' | 'advanced' | 'master'
+let currentMode = 'newbie';
+
+// 打卡相关：等待打卡后重新调用的档位索引
+let pendingProfileIndex = null;
+
+// 当前选择的档位索引（新手模式用）
+let currentProfileIndex = 1; // 默认温和型
+
+// 当前自定义比例（进阶/大师模式用）
+let customRatios = {
+    carb: 20,
+    protein: 15,
+    fat: 65
+};
+
+// 档位选择流程步骤：'select-mode' | 'mode-detail'
+let profileStep = 'select-mode';
+
+// 风险提示阈值
+const RISK_LIMITS = {
+    carb: { min: 5, max: 50 },
+    protein: { min: 10, max: 30 },
+    fat: { min: 20, max: 80 }
+};
+
+/**
+ * 从Supabase加载低碳水饮食档位配置
+ */
+async function loadLowCarbProfiles() {
+    const result = await getLowCarbProfiles();
+    if (result.success && result.data.length > 0) {
+        lowCarbProfiles = result.data;
+        console.log('✅ 低碳水饮食配置已加载:', lowCarbProfiles);
+        return true;
+    } else {
+        console.warn('⚠️ 无法加载低碳水饮食配置，使用默认配置');
+        // 使用默认配置
+        lowCarbProfiles = [
+            { '方案名称': '控制型低碳水饮食', '碳水下限': 25, '碳水上限': 44, '碳水默认': 35, '蛋白质比例': 15, '脂肪比例': 50 },
+            { '方案名称': '温和型低碳水饮食', '碳水下限': 10, '碳水上限': 25, '碳水默认': 20, '蛋白质比例': 15, '脂肪比例': 65 },
+            { '方案名称': '极低碳水饮食/生酮饮食', '碳水下限': 5, '碳水上限': 10, '碳水默认': 10, '蛋白质比例': 20, '脂肪比例': 70 }
+        ];
+        return false;
+    }
+}
+
+/**
+ * 获取当前有效的营养比例
+ */
+function getCurrentRatios() {
+    if (currentMode === 'newbie') {
+        const profile = lowCarbProfiles[currentProfileIndex];
+        return {
+            carb: profile['碳水默认'],
+            protein: profile['蛋白质比例'],
+            fat: profile['脂肪比例'],
+            profileName: profile['方案名称']
+        };
+    } else if (currentMode === 'advanced') {
+        const profile = lowCarbProfiles[currentProfileIndex];
+        return {
+            carb: customRatios.carb,
+            protein: profile['蛋白质比例'],
+            fat: 100 - customRatios.carb - profile['蛋白质比例'],
+            profileName: profile['方案名称']
+        };
+    } else {
+        // master mode
+        return {
+            carb: customRatios.carb,
+            protein: customRatios.protein,
+            fat: customRatios.fat,
+            profileName: '自定义'
+        };
+    }
+}
+
+/**
+ * 生成营养配比设置HTML
+ */
+function renderMacroRatioSettings() {
+    const profile = lowCarbProfiles[currentProfileIndex] || lowCarbProfiles[1];
+    const ratios = getCurrentRatios();
+
+    let modeDescription = '';
+    switch(currentMode) {
+        case 'newbie': modeDescription = '系统推荐，一键设置'; break;
+        case 'advanced': modeDescription = '可调整碳水，蛋白质固定'; break;
+        case 'master': modeDescription = '三大营养全自定义，系统辅助把关'; break;
+    }
+
+    return `
+        <div class="macro-ratio-settings" id="macroRatioSettings">
+            <h3>⚙️ 营养配比设置</h3>
+
+            <!-- 模式选择 -->
+            <div class="ratio-mode-selector">
+                <label>选择模式：</label>
+                <div class="mode-buttons">
+                    <button class="mode-btn ${currentMode === 'newbie' ? 'active' : ''}"
+                            onclick="setMacroMode('newbie')">
+                        🌱 新手模式
+                    </button>
+                    <button class="mode-btn ${currentMode === 'advanced' ? 'active' : ''}"
+                            onclick="setMacroMode('advanced')">
+                        ⚡ 进阶模式
+                    </button>
+                    <button class="mode-btn ${currentMode === 'master' ? 'active' : ''}"
+                            onclick="setMacroMode('master')">
+                        🎓 大师模式
+                    </button>
+                </div>
+                <p class="mode-desc">${modeDescription}</p>
+            </div>
+
+            ${currentMode === 'newbie' ? renderNewbieMode(profile, ratios) : ''}
+            ${currentMode === 'advanced' ? renderAdvancedMode(profile, ratios) : ''}
+            ${currentMode === 'master' ? renderMasterMode(ratios) : ''}
+
+            <!-- 风险提示区域 -->
+            <div class="risk-warnings" id="riskWarnings">
+                ${generateRiskWarnings(ratios)}
+            </div>
+
+            <!-- 营养比例汇总 -->
+            <div class="ratio-summary" id="ratioSummary">
+                ${renderRatioSummary(ratios)}
+            </div>
+
+            <button class="btn-calculate" onclick="applyMacroRatios()">✓ 应用此配比</button>
+        </div>
+    `;
+}
+
+/**
+ * 新手模式：只显示档位选择
+ */
+function renderNewbieMode(profile, ratios) {
+    return `
+        <div class="profile-selector">
+            ${lowCarbProfiles.map((p, idx) => `
+                <label class="profile-option ${currentProfileIndex === idx ? 'selected' : ''}">
+                    <input type="radio" name="profile" value="${idx}"
+                           ${currentProfileIndex === idx ? 'checked' : ''}
+                           onchange="selectProfile(${idx})">
+                    <div class="profile-content">
+                        <strong>${p['方案名称']}</strong>
+                        <div class="profile-ratios">
+                            碳水 ${p['碳水默认']}% | 蛋白质 ${p['蛋白质比例']}% | 脂肪 ${p['脂肪比例']}%
+                        </div>
+                        <small class="profile-desc">${p['说明']}</small>
+                    </div>
+                </label>
+            `).join('')}
+        </div>
+    `;
+}
+
+/**
+ * 进阶模式：可调碳水
+ */
+function renderAdvancedMode(profile, ratios) {
+    const carbMin = profile['碳水下限'];
+    const carbMax = profile['碳水上限'];
+
+    return `
+        <div class="advanced-controls">
+            <div class="slider-control">
+                <label>碳水化合物（可调）：</label>
+                <div class="slider-container">
+                    <input type="range" id="carbSlider"
+                           min="${carbMin}" max="${carbMax}" step="1"
+                           value="${customRatios.carb}"
+                           oninput="updateAdvancedSlider('carb', this.value)">
+                    <span class="slider-value" id="carbSliderValue">${customRatios.carb}%</span>
+                </div>
+                <div class="slider-range">${carbMin}% ~ ${carbMax}%</div>
+            </div>
+
+            <div class="fixed-ratios">
+                <div class="ratio-item">
+                    <span>蛋白质（固定）</span>
+                    <strong>${profile['蛋白质比例']}%</strong>
+                </div>
+                <div class="ratio-item">
+                    <span>脂肪（自动计算）</span>
+                    <strong id="advancedFatValue">${100 - customRatios.carb - profile['蛋白质比例']}%</strong>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * 大师模式：三大营养全自定义
+ */
+function renderMasterMode(ratios) {
+    return `
+        <div class="master-controls">
+            <div class="slider-control">
+                <label>碳水化合物：</label>
+                <div class="slider-container">
+                    <input type="range" id="masterCarbSlider"
+                           min="5" max="50" step="1"
+                           value="${customRatios.carb}"
+                           oninput="updateMasterSlider('carb', this.value)">
+                    <span class="slider-value" id="masterCarbSliderValue">${customRatios.carb}%</span>
+                </div>
+            </div>
+
+            <div class="slider-control">
+                <label>蛋白质：</label>
+                <div class="slider-container">
+                    <input type="range" id="masterProteinSlider"
+                           min="10" max="30" step="1"
+                           value="${customRatios.protein}"
+                           oninput="updateMasterSlider('protein', this.value)">
+                    <span class="slider-value" id="masterProteinSliderValue">${customRatios.protein}%</span>
+                </div>
+            </div>
+
+            <div class="slider-control">
+                <label>脂肪：</label>
+                <div class="slider-container">
+                    <input type="range" id="masterFatSlider"
+                           min="20" max="80" step="1"
+                           value="${customRatios.fat}"
+                           oninput="updateMasterSlider('fat', this.value)">
+                    <span class="slider-value" id="masterFatSliderValue">${customRatios.fat}%</span>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * 更新进阶模式的滑动条
+ */
+function updateAdvancedSlider(type, value) {
+    const profile = lowCarbProfiles[currentProfileIndex];
+    customRatios[type] = parseInt(value);
+
+    document.getElementById('carbSliderValue').textContent = value + '%';
+    const fat = 100 - parseInt(value) - profile['蛋白质比例'];
+    document.getElementById('advancedFatValue').textContent = fat + '%';
+
+    // 更新风险提示和汇总
+    updateRatioPreview();
+}
+
+/**
+ * 更新大师模式的滑动条
+ */
+function updateMasterSlider(type, value) {
+    customRatios[type] = parseInt(value);
+    document.getElementById(`master${type.charAt(0).toUpperCase() + type.slice(1)}SliderValue`).textContent = value + '%';
+
+    // 更新风险提示和汇总
+    updateRatioPreview();
+}
+
+/**
+ * 更新比例预览（风险提示和汇总）
+ */
+function updateRatioPreview() {
+    const ratios = getCurrentRatios();
+
+    // 更新风险提示
+    const riskWarningsEl = document.getElementById('riskWarnings');
+    if (riskWarningsEl) {
+        riskWarningsEl.innerHTML = generateRiskWarnings(ratios);
+    }
+
+    // 更新汇总
+    const ratioSummaryEl = document.getElementById('ratioSummary');
+    if (ratioSummaryEl) {
+        ratioSummaryEl.innerHTML = renderRatioSummary(ratios);
+    }
+}
+
+/**
+ * 生成风险提示
+ */
+function generateRiskWarnings(ratios) {
+    const warnings = [];
+
+    // 碳水风险
+    if (ratios.carb < RISK_LIMITS.carb.min) {
+        warnings.push({ type: 'danger', text: `碳水 ${ratios.carb}%：极低，可能进入深度生酮，注意监测` });
+    } else if (ratios.carb > RISK_LIMITS.carb.max) {
+        warnings.push({ type: 'warning', text: `碳水 ${ratios.carb}%：偏高，已不属于低碳水饮食范围` });
+    }
+
+    // 蛋白质风险
+    if (ratios.protein < RISK_LIMITS.protein.min) {
+        warnings.push({ type: 'danger', text: `蛋白质 ${ratios.protein}%：过低，可能影响肌肉保留` });
+    } else if (ratios.protein > RISK_LIMITS.protein.max) {
+        warnings.push({ type: 'warning', text: `蛋白质 ${ratios.protein}%：偏高，增加肾脏负担` });
+    }
+
+    // 脂肪风险
+    if (ratios.fat < RISK_LIMITS.fat.min) {
+        warnings.push({ type: 'danger', text: `脂肪 ${ratios.fat}%：过低，可能影响脂溶性维生素吸收` });
+    } else if (ratios.fat > RISK_LIMITS.fat.max) {
+        warnings.push({ type: 'warning', text: `脂肪 ${ratios.fat}%：偏高，注意总热量控制` });
+    }
+
+    if (warnings.length === 0) {
+        return '<div class="risk-ok">✓ 当前配比在安全范围内</div>';
+    }
+
+    return warnings.map(w => `
+        <div class="risk-item ${w.type}">
+            <span class="risk-icon">⚠️</span>
+            <span>${w.text}</span>
+        </div>
+    `).join('');
+}
+
+/**
+ * 渲染营养比例汇总
+ */
+function renderRatioSummary(ratios) {
+    const total = ratios.carb + ratios.protein + ratios.fat;
+    const isValid = Math.abs(total - 100) < 0.1;
+
+    return `
+        <div class="ratio-summary-content">
+            <div class="ratio-bar">
+                <div class="ratio-bar-carb" style="width: ${ratios.carb}%"></div>
+                <div class="ratio-bar-protein" style="width: ${ratios.protein}%"></div>
+                <div class="ratio-bar-fat" style="width: ${ratios.fat}%"></div>
+            </div>
+            <div class="ratio-labels">
+                <span>🥩 蛋白质 ${ratios.protein}%</span>
+                <span>🥑 脂肪 ${ratios.fat}%</span>
+                <span>🍚 碳水 ${ratios.carb}%</span>
+            </div>
+            <div class="ratio-total ${isValid ? 'ok' : 'error'}">
+                ${isValid ? '✓' : '⚠️'} 总计：${total.toFixed(1)}%
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * 切换模式
+ */
+function setMacroMode(mode) {
+    currentMode = mode;
+
+    // 重置到当前档位的默认值
+    if (mode === 'advanced' || mode === 'master') {
+        const profile = lowCarbProfiles[currentProfileIndex];
+        customRatios.carb = profile['碳水默认'];
+        customRatios.protein = profile['蛋白质比例'];
+        customRatios.fat = profile['脂肪比例'];
+    }
+
+    // 重新渲染设置区域
+    const container = document.getElementById('macroRatioSettings');
+    if (container) {
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = renderMacroRatioSettings();
+        container.replaceWith(tempDiv.firstElementChild);
+    }
+}
+
+/**
+ * 选择档位（新手模式）
+ */
+function selectProfile(index) {
+    currentProfileIndex = index;
+    const profile = lowCarbProfiles[index];
+
+    // 重置自定义值到新档位的默认值
+    customRatios.carb = profile['碳水默认'];
+    customRatios.protein = profile['蛋白质比例'];
+    customRatios.fat = profile['脂肪比例'];
+
+    updateRatioPreview();
+}
+
+/**
+ * 应用营养配比
+ */
+function applyMacroRatios() {
+    const ratios = getCurrentRatios();
+
+    // 检查风险
+    const hasRisk = ratios.carb < RISK_LIMITS.carb.min ||
+                    ratios.carb > RISK_LIMITS.carb.max ||
+                    ratios.protein < RISK_LIMITS.protein.min ||
+                    ratios.protein > RISK_LIMITS.protein.max ||
+                    ratios.fat < RISK_LIMITS.fat.min ||
+                    ratios.fat > RISK_LIMITS.fat.max;
+
+    if (hasRisk) {
+        showConfirmDialog({
+            title: '配比风险提示',
+            message: '当前配比超出推荐范围，确定要应用吗？',
+            onConfirm: () => {
+                updateMacroDisplay(ratios);
+                const settingsEl = document.getElementById('macroRatioSettings');
+                if (settingsEl) settingsEl.style.display = 'none';
+                showToast(`✅ 已应用新配比：${ratios.profileName}  碳水 ${ratios.carb}% | 蛋白质 ${ratios.protein}% | 脂肪 ${ratios.fat}%`, 'success');
+            }
+        });
+        return;
+    }
+
+    // 更新三大营养素显示
+    updateMacroDisplay(ratios);
+
+    // 关闭设置区域（可选）
+    const settingsEl = document.getElementById('macroRatioSettings');
+    if (settingsEl) {
+        settingsEl.style.display = 'none';
+    }
+
+    showToast(`✅ 已应用新配比：${ratios.profileName}  碳水 ${ratios.carb}% | 蛋白质 ${ratios.protein}% | 脂肪 ${ratios.fat}%`, 'success');
+}
+
+/**
+ * 更新营养素显示（应用新配比后）
+ */
+function updateMacroDisplay(ratios) {
+    const tdee = users[currentUser]?.results?.tdee || 2000;
+
+    // 计算克数
+    const proteinKcal = tdee * ratios.protein / 100;
+    const fatKcal = tdee * ratios.fat / 100;
+    const carbKcal = tdee * ratios.carb / 100;
+
+    const macros = {
+        protein: {
+            percent: ratios.protein,
+            kcal: Math.round(proteinKcal),
+            grams: Math.round(proteinKcal / 4),
+        },
+        fat: {
+            percent: ratios.fat,
+            kcal: Math.round(fatKcal),
+            grams: Math.round(fatKcal / 9),
+        },
+        carb: {
+            percent: ratios.carb,
+            kcal: Math.round(carbKcal),
+            grams: Math.round(carbKcal / 4),
+        }
+    };
+
+    // 更新显示
+    document.getElementById('proteinPercent').textContent = `${macros.protein.percent}%`;
+    document.getElementById('proteinGrams').textContent = `${macros.protein.grams}g`;
+    document.getElementById('proteinKcal').textContent = `${macros.protein.kcal} kcal`;
+
+    document.getElementById('fatPercent').textContent = `${macros.fat.percent}%`;
+    document.getElementById('fatGrams').textContent = `${macros.fat.grams}g`;
+    document.getElementById('fatKcal').textContent = `${macros.fat.kcal} kcal`;
+
+    document.getElementById('carbPercent').textContent = `${macros.carb.percent}%`;
+    document.getElementById('carbGrams').textContent = `${macros.carb.grams}g`;
+    document.getElementById('carbKcal').textContent = `${macros.carb.kcal} kcal`;
+
+    // 更新圆形进度
+    updateMacroCircle('protein', macros.protein.percent);
+    updateMacroCircle('fat', macros.fat.percent);
+    updateMacroCircle('carb', macros.carb.percent);
+
+    // 更新食物换算
+    renderFoodExchange(macros);
+
+    // 保存到用户数据
+    if (users[currentUser]) {
+        users[currentUser].macroRatios = ratios;
+    }
+}
+
+// ============================================
+// 核心计算公式
+// ============================================
+
+/**
+ * 计算BMI
+ * @param {number} heightCm - 身高（厘米）
+ * @param {number} weightKg - 体重（公斤）
+ * @returns {number} BMI值
+ */
+function calculateBMI(heightCm, weightKg) {
+    const heightM = heightCm / 100;
+    return weightKg / (heightM * heightM);
+}
+
+/**
+ * 获取BMI状态
+ * @param {number} bmi
+ * @returns {object} {status, label, className}
+ */
+function getBMIStatus(bmi) {
+    if (bmi < 18.5) return { status: '偏瘦', label: 'BMI', className: 'underweight' };
+    if (bmi < 24) return { status: '正常', label: 'BMI', className: 'normal' };
+    if (bmi < 28) return { status: '超重', label: 'BMI', className: 'overweight' };
+    return { status: '肥胖', label: 'BMI', className: 'obese' };
+}
+
+/**
+ * 计算标准体重（夏萌原书方法）
+ * 无论男女均用此公式
+ * @param {number} heightCm - 身高（厘米）
+ * @returns {number} 标准体重(kg)
+ */
+function calculateStdWeight(heightCm) {
+    return heightCm - 105;
+}
+
+/**
+ * 计算调节体重（BMI≥28时使用）
+ * @param {number} realWeightKg - 真实体重
+ * @param {number} stdWeight - 标准体重
+ * @returns {number} 调节体重(kg)
+ */
+function calculateAdjustedWeight(realWeightKg, stdWeight) {
+    return (realWeightKg + stdWeight) / 2;
+}
+
+/**
+ * 计算年龄系数（50岁起每10年降0.1，最低0.4）
+ * 50岁=0.9, 60岁=0.8, 70岁=0.7, 80岁=0.6, 90岁=0.5, 100岁=0.4
+ * @param {number} age - 年龄（岁）
+ * @returns {number} 年龄系数
+ */
+function calculateAgeFactor(age) {
+    if (age < 50) return 1.0;
+    // ceil((age - 49) / 10)：50岁→1, 60岁→2, 70岁→3...
+    const decades = Math.ceil((age - 49) / 10);
+    return Math.max(0.4, 1.0 - decades * 0.1);
+}
+
+/**
+ * 获取能量系数（按体力活动量）
+ * 对应夏萌原书标准：卧床25 / 轻体力30 / 中体力35 / 重体力40 (kcal/kg)
+ * @param {number} activityMultiplier - 活动系数（对应select值）
+ * @returns {number} 能量系数(kcal/kg)
+ */
+function getEnergyCoefficient(activityMultiplier) {
+    // 与 index.html 中 activity select 选项对应（夏萌原书四档）：
+    // 1.2=卧床(25) 1.375=轻体力劳动(30) 1.55=中体力劳动(35) 1.725=重体力劳动(40)
+    if (activityMultiplier <= 1.2) return 25;   // 卧床：几乎不活动
+    if (activityMultiplier <= 1.375) return 30; // 轻体力：办公室工作，少量活动
+    if (activityMultiplier <= 1.55) return 35;  // 中体力：有一定职业活动量或规律运动
+    return 40; // 重体力：高强度职业活动或每天大量运动
+}
+
+/**
+ * 计算每日总能量（夏萌原书方法）
+ * @param {number} heightCm - 身高（厘米）
+ * @param {number} weightKg - 体重（公斤）
+ * @param {number} age - 年龄（岁）
+ * @param {number} activityMultiplier - 活动系数
+ * @returns {object} { tdee, stdWeight, targetWeight, bmi, ageFactor, energyCoeff, calcDetail }
+ */
+function calculateTDEE_XiaMeng(heightCm, weightKg, age, activityMultiplier) {
+    const stdWeight = calculateStdWeight(heightCm);
+    const bmi = calculateBMI(heightCm, weightKg);
+    const ageFactor = calculateAgeFactor(age);
+    const energyCoeff = getEnergyCoefficient(activityMultiplier);
+
+    // 目标体重：BMI≥28用调节体重
+    let targetWeight;
+    let weightType;
+    if (bmi >= 28) {
+        targetWeight = calculateAdjustedWeight(weightKg, stdWeight);
+        weightType = '调节体重';
+    } else {
+        targetWeight = stdWeight;
+        weightType = '标准体重';
+    }
+
+    const tdee = targetWeight * energyCoeff * ageFactor;
+
+    return {
+        tdee: Math.round(tdee),
+        stdWeight,
+        targetWeight: Math.round(targetWeight * 10) / 10,
+        weightType,
+        bmi: Math.round(bmi * 10) / 10,
+        ageFactor,
+        energyCoeff,
+    };
+}
+
+/**
+ * 计算基础代谢率（BMR）- Mifflin-St Jeor公式（保留作对比）
+ * @param {string} gender - 'male' 或 'female'
+ * @param {number} age - 年龄（岁）
+ * @param {number} heightCm - 身高（厘米）
+ * @param {number} weightKg - 体重（公斤）
+ * @returns {number} BMR (kcal/天)
+ */
+function calculateBMR(gender, age, heightCm, weightKg) {
+    if (gender === 'male') {
+        return 10 * weightKg + 6.25 * heightCm - 5 * age + 5;
+    } else {
+        return 10 * weightKg + 6.25 * heightCm - 5 * age - 161;
+    }
+}
+
+/**
+ * 计算每日总消耗（TDEE）- Mifflin-St Jeor方法（保留作对比）
+ * @param {number} bmr - 基础代谢率
+ * @param {number} activityMultiplier - 活动系数
+ * @returns {number} TDEE (kcal/天)
+ */
+function calculateTDEE(bmr, activityMultiplier) {
+    return Math.round(bmr * activityMultiplier);
+}
+
+/**
+ * 计算每日营养目标（克数和卡路里）
+ * 已考虑食物动力效应：蛋白质吸收率70%，碳水/脂肪吸收率95%
+ * @param {number} tdee - 每日总消耗
+ * @returns {object} {protein, fat, carb} 各含{g, kcal, g_actual, kcal_actual}
+ */
+function calculateDailyMacros(tdee, customRatio) {
+    // 使用传入的比例，或使用默认标准比例
+    const ratio = customRatio || { protein: 15, fat: 30, carb: 55 };
+
+    // 理论值（标签值）
+    const protein_kcal = Math.round(tdee * ratio.protein / 100);
+    const fat_kcal     = Math.round(tdee * ratio.fat    / 100);
+    const carb_kcal    = Math.round(tdee * ratio.carb   / 100);
+
+    // 考虑食物动力效应后的实际吸收量
+    // 蛋白质动力效应=30%，实际吸收70%；碳水/脂肪动力效应=5%，实际吸收95%
+    const PROTEIN_ABSORPTION = 0.70;
+    const CARB_FAT_ABSORPTION = 0.95;
+
+    return {
+        protein: {
+            percent:      ratio.protein,
+            kcal:          protein_kcal,
+            grams:         Math.round(protein_kcal / 4),
+            kcal_actual:   Math.round(protein_kcal * PROTEIN_ABSORPTION),
+            grams_actual:  Math.round(protein_kcal * PROTEIN_ABSORPTION / 4),
+        },
+        fat: {
+            percent:      ratio.fat,
+            kcal:          fat_kcal,
+            grams:         Math.round(fat_kcal / 9),
+            kcal_actual:   Math.round(fat_kcal * CARB_FAT_ABSORPTION),
+            grams_actual:  Math.round(fat_kcal * CARB_FAT_ABSORPTION / 9),
+        },
+        carb: {
+            percent:      ratio.carb,
+            kcal:          carb_kcal,
+            grams:         Math.round(carb_kcal / 4),
+            kcal_actual:   Math.round(carb_kcal * CARB_FAT_ABSORPTION),
+            grams_actual:  Math.round(carb_kcal * CARB_FAT_ABSORPTION / 4),
+        },
+        tef_note: {
+            protein: '蛋白质动力效应=30%，实际吸收70%',
+            carb:     '碳水动力效应=5%，实际吸收95%',
+            fat:      '脂肪动力效应=5%，实际吸收95%',
+        }
+    };
+}
+
+// ============================================
+// UI渲染
+// ============================================
+
+/**
+ * 获取表单数据
+ */
+function getFormData() {
+    return {
+        name: document.getElementById('name').value.trim() || `用户${currentUser + 1}`,
+        gender: document.getElementById('gender').value,
+        age: parseInt(document.getElementById('age').value) || 40,
+        height: parseFloat(document.getElementById('height').value) || 170,
+        weight: parseFloat(document.getElementById('weight').value) || 70,
+        activity: parseFloat(document.getElementById('activity').value),
+    };
+}
+
+/**
+ * 填充表单数据
+ */
+function populateForm(data) {
+    document.getElementById('name').value = data.name || '';
+    document.getElementById('gender').value = data.gender || 'male';
+    document.getElementById('age').value = data.age || '';
+    document.getElementById('height').value = data.height || '';
+    document.getElementById('weight').value = data.weight || '';
+    document.getElementById('activity').value = data.activity || '1.55';
+}
+
+/**
+ * 切换营养配比设置区域的显示/隐藏
+ */
+async function toggleMacroRatioSettings() {
+    const container = document.getElementById('macroRatioContainer');
+
+    if (container.style.display === 'none') {
+        // 确保配置已加载
+        if (lowCarbProfiles.length === 0) {
+            await loadLowCarbProfiles();
+        }
+
+        // 渲染设置区域
+        container.innerHTML = renderMacroRatioSettings();
+        container.style.display = 'block';
+    } else {
+        container.style.display = 'none';
+    }
+}
+
+/**
+ * 渲染计算结果（夏萌标准体重法增强版）
+ * 在原有结果基础上，增加标准体重、调节体重、年龄系数等说明
+ */
+function renderResults_XiaMeng(formData, xiaResult, bmr, macros) {
+    const resultSection = document.getElementById('resultSection');
+    const inputSection = document.getElementById('inputSection');
+
+    resultSection.style.display = 'block';
+    inputSection.style.display = 'none';
+
+    // 基本信息
+    document.getElementById('resultName').textContent = formData.name;
+
+    // BMI
+    const bmiValue = xiaResult.bmi;
+    const bmiInfo = getBMIStatus(bmiValue);
+    document.getElementById('bmiValue').textContent = bmiValue.toFixed(1);
+    const bmiStatus = document.getElementById('bmiStatus');
+    bmiStatus.textContent = bmiInfo.status;
+    bmiStatus.className = `summary-status ${bmiInfo.className}`;
+
+    // BMR & TDEE
+    document.getElementById('bmrValue').textContent = Math.round(bmr);
+    document.getElementById('tdeeValue').textContent = xiaResult.tdee;
+
+    // 在TDEE下方插入夏萌方法的计算说明
+    renderXiaMengDetail(xiaResult);
+
+    // 三大营养素（标签值 + 实际吸收值）
+    document.getElementById('proteinPercent').textContent = `${macros.protein.percent}%`;
+    document.getElementById('proteinGrams').textContent = `${macros.protein.grams}g`;
+    document.getElementById('proteinKcal').textContent = `${macros.protein.kcal} kcal`;
+    document.getElementById('proteinGramsActual').textContent = `实际吸收 ${macros.protein.grams_actual}g`;
+    document.getElementById('proteinKcalActual').textContent = `(${macros.protein.kcal_actual} kcal)`;
+
+    document.getElementById('fatPercent').textContent = `${macros.fat.percent}%`;
+    document.getElementById('fatGrams').textContent = `${macros.fat.grams}g`;
+    document.getElementById('fatKcal').textContent = `${macros.fat.kcal} kcal`;
+    document.getElementById('fatGramsActual').textContent = `实际吸收 ${macros.fat.grams_actual}g`;
+    document.getElementById('fatKcalActual').textContent = `(${macros.fat.kcal_actual} kcal)`;
+
+    document.getElementById('carbPercent').textContent = `${macros.carb.percent}%`;
+    document.getElementById('carbGrams').textContent = `${macros.carb.grams}g`;
+    document.getElementById('carbKcal').textContent = `${macros.carb.kcal} kcal`;
+    document.getElementById('carbGramsActual').textContent = `实际吸收 ${macros.carb.grams_actual}g`;
+    document.getElementById('carbKcalActual').textContent = `(${macros.carb.kcal_actual} kcal)`;
+
+    // 更新圆形进度
+    updateMacroCircle('protein', macros.protein.percent);
+    updateMacroCircle('fat', macros.fat.percent);
+    updateMacroCircle('carb', macros.carb.percent);
+
+    // 食物换算
+    renderFoodExchange(macros);
+
+    // 注意事项
+    renderWarnings(formData, { bmr, tdee: xiaResult.tdee, macros });
+
+    // 保存当前用户数据（保留已有属性如 xiaResult）
+    users[currentUser] = {
+        ...users[currentUser],
+        formData: { ...formData },
+        results: { bmr, tdee: xiaResult.tdee, macros },
+    };
+
+    // 更新URL参数（用于分享）
+    updateURLParams(formData);
+
+    // 隐藏营养配比设置区域（初始状态）
+    document.getElementById('macroRatioContainer').style.display = 'none';
+
+    // 后台预加载低碳水饮食配置
+    loadLowCarbProfiles();
+
+    // 滚动到结果
+    resultSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ============================================
+// 档位选择流程（问卷提交后显示）
+// ============================================
+
+/**
+ * 显示低碳水饮食档位选择界面（在resultPageSection里）
+ * @param {object} intake - 问卷统计的实际每日摄入
+ */
+/**
+ * 显示低碳水饮食档位选择界面（在resultPageSection里，支持三种模式）
+ * @param {object} intake - 问卷统计的实际每日摄入
+ */
+function showProfileSelectorInPage(intake) {
+    const card = document.getElementById('profileSelectorCard');
+    const content = document.getElementById('profileSelectorContent');
+
+    // 确保配置已加载
+    if (lowCarbProfiles.length === 0) {
+        lowCarbProfiles = [
+            { '方案名称': '控制型低碳水饮食', '碳水下限': 25, '碳水上限': 44, '碳水默认': 35, '蛋白质比例': 15, '脂肪比例': 50, '说明': '不分解脂肪，适合初学者入门' },
+            { '方案名称': '温和型低碳水饮食', '碳水下限': 10, '碳水上限': 25, '碳水默认': 20, '蛋白质比例': 15, '脂肪比例': 65, '说明': '间断分解脂肪，产生酮体，适合有减脂需求者' },
+            { '方案名称': '极低碳水饮食/生酮饮食', '碳水下限': 5, '碳水上限': 10, '碳水默认': 10, '蛋白质比例': 20, '脂肪比例': 70, '说明': '产生酮体，适合在医生指导下进行' }
+        ];
+    }
+
+    // 方案效果说明配置
+    const profileEffects = [
+        { icon: '🎯', title: '稳定维持型', effect: '不用饿肚子，维持当前身材，降低慢病风险', suitable: '适合：不想改变体型，想打基础的人' },
+        { icon: '🔥', title: '轻松减脂型', effect: '悄悄燃脂，不剧烈，轻松坚持', suitable: '适合：想慢慢瘦、不痛苦的人' },
+        { icon: '⚡', title: '强力燃脂型', effect: '快速燃脂，加速掉秤，需严格执行', suitable: '适合：BMI偏高、决心大的人' }
+    ];
+
+    let html = '';
+
+    if (profileStep === 'select-mode') {
+        // ==========================================
+        // 第一步：模式选择页
+        // ==========================================
+        html = `
+        <h3 style="text-align:center;margin-bottom:24px;color:var(--primary);">请选择您的操作模式</h3>
+        <div class="mode-select-grid" style="display:grid;gap:16px;">
+            <div class="mode-select-card ${currentMode === 'newbie' ? 'selected' : ''}"
+                 onclick="enterModeDetail('newbie')"
+                 style="border:2px solid ${currentMode === 'newbie' ? 'var(--primary)' : '#e0e0e0'};border-radius:12px;padding:20px;cursor:pointer;transition:all 0.2s;">
+                <div style="font-size:2rem;text-align:center;margin-bottom:8px;">🌱</div>
+                <h4 style="text-align:center;margin-bottom:8px;">新手模式</h4>
+                <p style="text-align:center;color:#666;font-size:0.9rem;">系统预设，一键搞定<br>从三个推荐方案中选择</p>
+            </div>
+            <div class="mode-select-card ${currentMode === 'advanced' ? 'selected' : ''}"
+                 onclick="enterModeDetail('advanced')"
+                 style="border:2px solid ${currentMode === 'advanced' ? 'var(--primary)' : '#e0e0e0'};border-radius:12px;padding:20px;cursor:pointer;transition:all 0.2s;">
+                <div style="font-size:2rem;text-align:center;margin-bottom:8px;">⚡</div>
+                <h4 style="text-align:center;margin-bottom:8px;">进阶模式</h4>
+                <p style="text-align:center;color:#666;font-size:0.9rem;">在档位基础上微调碳水<br>适合有明确目标的用户</p>
+            </div>
+            <div class="mode-select-card ${currentMode === 'master' ? 'selected' : ''}"
+                 onclick="enterModeDetail('master')"
+                 style="border:2px solid ${currentMode === 'master' ? 'var(--primary)' : '#e0e0e0'};border-radius:12px;padding:20px;cursor:pointer;transition:all 0.2s;">
+                <div style="font-size:2rem;text-align:center;margin-bottom:8px;">🎓</div>
+                <h4 style="text-align:center;margin-bottom:8px;">大师模式</h4>
+                <p style="text-align:center;color:#666;font-size:0.9rem;">三大营养全自定义<br>适合专业用户</p>
+            </div>
+        </div>
+        `;
+    } else {
+        // ==========================================
+        // 第二步：模式详情页
+        // ==========================================
+        const modeTitles = { newbie: '🌱 新手模式', advanced: '⚡ 进阶模式', master: '🎓 大师模式' };
+        const modeDescs = {
+            newbie: '系统预设，一键搞定',
+            advanced: '在档位基础上微调碳水',
+            master: '三大营养全自定义'
+        };
+
+        html = `
+        <div style="margin-bottom:16px;">
+            <button onclick="backToModeSelect()" style="display:inline-flex;align-items:center;gap:4px;padding:8px 16px;border-radius:8px;background:#f0f0f0;border:none;cursor:pointer;font-size:0.9rem;color:#555;">
+                ← 返回模式选择
+            </button>
+        </div>
+        <div class="ratio-mode-selector">
+            <h3 style="text-align:center;color:var(--primary);margin-bottom:4px;">${modeTitles[currentMode]}</h3>
+            <p class="mode-desc" style="text-align:center;">${modeDescs[currentMode]}</p>
+        </div>
+        `;
+
+        // 新手模式：三张档位卡片
+        if (currentMode === 'newbie') {
+            html += '<div class="profile-cards">';
+            lowCarbProfiles.forEach((p, idx) => {
+                const effect = profileEffects[idx] || profileEffects[0];
+                html += `
+                <div class="profile-card ${currentProfileIndex === idx ? 'selected' : ''}"
+                     onclick="selectLowCarbProfileForPage(${idx})"
+                     data-profile-idx="${idx}">
+                    <div class="profile-card-header">
+                        <div class="profile-card-title">
+                            <span class="profile-icon">${effect.icon}</span>
+                            <span class="profile-name">${p['方案名称']}</span>
+                        </div>
+                        <span class="profile-badge">碳水 ${p['碳水默认']}%</span>
+                    </div>
+                    <div class="profile-card-effect">
+                        <strong class="effect-title">${effect.title}</strong>
+                        <p class="effect-desc">${effect.effect}</p>
+                    </div>
+                    <div class="profile-card-macros">
+                        <div class="profile-macro-bar">
+                            <span class="macro-bar-protein" style="width:${p['蛋白质比例']}%">蛋白 ${p['蛋白质比例']}%</span>
+                            <span class="macro-bar-fat" style="width:${p['脂肪比例']}%">脂肪 ${p['脂肪比例']}%</span>
+                            <span class="macro-bar-carb" style="width:${p['碳水默认']}%">碳水 ${p['碳水默认']}%</span>
+                        </div>
+                    </div>
+                    <div class="profile-card-suitable">
+                        <span class="suitable-icon">👤</span>
+                        <span>${effect.suitable}</span>
+                    </div>
+                </div>
+                `;
+            });
+            html += '</div>';
+        }
+
+        // 进阶模式：碳水滑动条
+        if (currentMode === 'advanced') {
+            const profile = lowCarbProfiles[currentProfileIndex];
+            const carbMin = profile['碳水下限'];
+            const carbMax = profile['碳水上限'];
+            const fatValue = 100 - customRatios.carb - profile['蛋白质比例'];
+            html += `
+            <div class="slider-control" style="margin-bottom:16px;">
+                <label>碳水化合物（可调）：</label>
+                <div class="slider-container">
+                    <input type="range" id="pageCarbSlider"
+                           min="${carbMin}" max="${carbMax}" step="1"
+                           value="${customRatios.carb}"
+                           oninput="updatePageAdvancedSlider(this.value, ${profile['蛋白质比例']})">
+                    <span class="slider-value" id="pageCarbSliderValue">${customRatios.carb}%</span>
+                </div>
+                <div class="slider-range">范围：${carbMin}% ~ ${carbMax}%</div>
+            </div>
+            <div class="fixed-ratios" style="display:flex;gap:16px;margin-bottom:16px;font-size:0.9rem;color:#666;">
+                <div>🥩 蛋白质（固定）<strong style="color:#333">${profile['蛋白质比例']}%</strong></div>
+                <div>🥑 脂肪（自动）<strong style="color:#333" id="pageAdvancedFatValue">${fatValue}%</strong></div>
+            </div>
+            <button class="btn-calculate" onclick="confirmCustomProfile()">✅ 确认方案</button>
+            `;
+        }
+
+        // 大师模式：三个滑动条
+        if (currentMode === 'master') {
+            html += `
+            <div class="master-controls" style="margin-bottom:12px;">
+                <div class="slider-control">
+                    <label>🍚 碳水化合物：</label>
+                    <div class="slider-container">
+                        <input type="range" id="pageMasterCarbSlider" min="5" max="50" step="1"
+                               value="${customRatios.carb}" oninput="updatePageMasterSlider()">
+                        <span class="slider-value" id="pageMasterCarbSliderValue">${customRatios.carb}%</span>
+                    </div>
+                </div>
+                <div class="slider-control">
+                    <label>🥩 蛋白质：</label>
+                    <div class="slider-container">
+                        <input type="range" id="pageMasterProteinSlider" min="10" max="30" step="1"
+                               value="${customRatios.protein}" oninput="updatePageMasterSlider()">
+                        <span class="slider-value" id="pageMasterProteinSliderValue">${customRatios.protein}%</span>
+                    </div>
+                </div>
+                <div class="slider-control">
+                    <label>🥑 脂肪：</label>
+                    <div class="slider-container">
+                        <input type="range" id="pageMasterFatSlider" min="20" max="80" step="1"
+                               value="${customRatios.fat}" oninput="updatePageMasterSlider()">
+                        <span class="slider-value" id="pageMasterFatSliderValue">${customRatios.fat}%</span>
+                    </div>
+                </div>
+            </div>
+            <div id="pageMasterRatioSummary" style="margin-bottom:12px;">${renderPageMasterRatioSummary()}</div>
+            <button class="btn-calculate" onclick="confirmCustomProfile()">✅ 确认方案</button>
+            <div id="pageMasterRiskWarnings" style="margin-top:12px;">${generateRiskWarnings(getCurrentRatios())}</div>
+            `;
+        }
+    }
+
+    // 保存摄入数据供后续使用
+    window.currentIntake = intake;
+
+    content.innerHTML = html;
+    card.style.display = 'block';
+    document.getElementById('resultSectionInPage').style.display = 'none';
+}
+
+/**
+ * 进入模式详情页
+ * @param {string} mode - 'newbie' | 'advanced' | 'master'
+ */
+function enterModeDetail(mode) {
+    currentMode = mode;
+    profileStep = 'mode-detail';
+
+    // 切换到进阶/大师时，初始化为当前档位的默认值
+    if (mode === 'advanced' || mode === 'master') {
+        const profile = lowCarbProfiles[currentProfileIndex];
+        customRatios.carb = profile['碳水默认'];
+        customRatios.protein = profile['蛋白质比例'];
+        customRatios.fat = profile['脂肪比例'];
+    }
+
+    showProfileSelectorInPage(window.currentIntake);
+}
+
+/**
+ * 返回模式选择页
+ */
+function backToModeSelect() {
+    profileStep = 'select-mode';
+    showProfileSelectorInPage(window.currentIntake);
+}
+
+/**
+ * 进阶/大师模式确认方案
+ */
+function confirmCustomProfile() {
+    selectLowCarbProfileForPage(currentProfileIndex);
+}
+
+/**
+ * 返回档位选择界面（从结果页返回）
+ */
+function backToProfileSelector() {
+    document.getElementById('resultSectionInPage').style.display = 'none';
+    document.getElementById('profileSelectorCard').style.display = 'block';
+}
+
+/**
+ * 切换方案选择模式（保留兼容）
+ * @param {string} mode - 'newbie' | 'advanced' | 'master'
+ */
+function switchProfileMode(mode) {
+    currentMode = mode;
+
+    // 切换到进阶/大师时，初始化为当前档位的默认值
+    if (mode === 'advanced' || mode === 'master') {
+        const profile = lowCarbProfiles[currentProfileIndex];
+        customRatios.carb = profile['碳水默认'];
+        customRatios.protein = profile['蛋白质比例'];
+        customRatios.fat = profile['脂肪比例'];
+    }
+
+    showProfileSelectorInPage(window.currentIntake);
+}
+
+/**
+ * 更新进阶模式碳水滑动条（页面版）
+ */
+function updatePageAdvancedSlider(carbValue, proteinPercent) {
+    const fat = 100 - parseInt(carbValue) - proteinPercent;
+    document.getElementById('pageCarbSliderValue').textContent = carbValue + '%';
+    document.getElementById('pageAdvancedFatValue').textContent = fat + '%';
+    customRatios.carb = parseInt(carbValue);
+    customRatios.fat = fat;
+    customRatios.protein = proteinPercent;
+}
+
+/**
+ * 更新大师模式三个滑动条（页面版）
+ */
+function updatePageMasterSlider() {
+    const carb = parseInt(document.getElementById('pageMasterCarbSlider').value);
+    const protein = parseInt(document.getElementById('pageMasterProteinSlider').value);
+    let fat = parseInt(document.getElementById('pageMasterFatSlider').value);
+
+    // 修正fat使三者和为100
+    fat = 100 - carb - protein;
+    if (fat < 20) fat = 20;
+    if (fat > 80) fat = 80;
+
+    document.getElementById('pageMasterCarbSliderValue').textContent = carb + '%';
+    document.getElementById('pageMasterProteinSliderValue').textContent = protein + '%';
+    document.getElementById('pageMasterFatSliderValue').textContent = fat + '%';
+
+    customRatios.carb = carb;
+    customRatios.protein = protein;
+    customRatios.fat = fat;
+
+    // 更新汇总和风险警告
+    const ratioSummaryEl = document.getElementById('pageMasterRatioSummary');
+    if (ratioSummaryEl) {
+        ratioSummaryEl.innerHTML = renderPageMasterRatioSummary();
+    }
+    const riskEl = document.getElementById('pageMasterRiskWarnings');
+    if (riskEl) {
+        riskEl.innerHTML = generateRiskWarnings(getCurrentRatios());
+    }
+}
+
+/**
+ * 渲染大师模式的比例汇总（页面版）
+ */
+function renderPageMasterRatioSummary() {
+    const ratios = getCurrentRatios();
+    const total = ratios.carb + ratios.protein + ratios.fat;
+    const isValid = Math.abs(total - 100) < 0.1;
+
+    return `
+        <div class="ratio-bar" style="height:20px;border-radius:8px;overflow:hidden;display:flex;margin-bottom:8px;">
+            <div style="width:${ratios.protein}%;background:#e74c3c;" title="蛋白质"></div>
+            <div style="width:${ratios.fat}%;background:#f39c12;" title="脂肪"></div>
+            <div style="width:${ratios.carb}%;background:#3498db;" title="碳水"></div>
+        </div>
+        <div style="display:flex;gap:12px;justify-content:center;font-size:0.85rem;color:#666;">
+            <span>🥩 蛋白 ${ratios.protein}%</span>
+            <span>🥑 脂肪 ${ratios.fat}%</span>
+            <span>🍚 碳水 ${ratios.carb}%</span>
+            <span style="color:${isValid ? 'var(--success)' : 'var(--danger)'}">
+                ${isValid ? '✓' : '⚠️'} 总计 ${total.toFixed(1)}%
+            </span>
+        </div>
+    `;
+}
+
+function selectLowCarbProfileForPage(profileIndex) {
+    const userData = users[currentUser];
+    if (!userData || !userData.xiaResult) {
+        showToast('请先填写基本信息', 'error');
+        return;
+    }
+
+    // ⏳ 检查昨日是否需要打卡
+    const yesterday = getYesterdayStr();
+    const yesterdayHistory = getDayHistory(yesterday);
+    if (!isCheckedIn(yesterday) && yesterdayHistory) {
+        pendingProfileIndex = profileIndex;
+        showCheckInPopup(yesterday, yesterdayHistory);
+        return; // 等打卡提交后再回来生成方案
+    }
+
+    // 更新当前档位索引（进阶/大师模式的slider依赖这个）
+    currentProfileIndex = profileIndex;
+
+    // 获取当前有效比例（根据currentMode和新手/进阶/大师的slider值）
+    const ratio = getCurrentRatios();
+
+    // 大师模式风险确认
+    if (currentMode === 'master') {
+        const hasRisk = ratio.carb < RISK_LIMITS.carb.min ||
+                        ratio.carb > RISK_LIMITS.carb.max ||
+                        ratio.protein < RISK_LIMITS.protein.min ||
+                        ratio.protein > RISK_LIMITS.protein.max ||
+                        ratio.fat < RISK_LIMITS.fat.min ||
+                        ratio.fat > RISK_LIMITS.fat.max;
+        if (hasRisk) {
+            showConfirmDialog({
+                title: '配比风险提示',
+                message: `当前配比超出推荐范围：\n🥩 蛋白质 ${ratio.protein}%（推荐 10-30%）\n🥑 脂肪 ${ratio.fat}%（推荐 20-80%）\n🍚 碳水 ${ratio.carb}%（推荐 5-50%）`,
+                confirmText: '确定应用',
+                onConfirm: () => generateProfilePlan(userData, ratio)
+            });
+            return;
+        }
+    }
+
+    generateProfilePlan(userData, ratio);
+}
+
+/**
+ * 生成方案（计算BMR/宏量营养素/能量补偿）
+ */
+function generateProfilePlan(userData, ratio) {
+    const bmr = calculateBMR(userData.gender, userData.age, userData.height, userData.weight);
+    const macros = calculateDailyMacros(userData.xiaResult.tdee, ratio);
+
+    // ⏳ 周能量补偿：周一清零 + 读负债算今日调整
+    const weekMsg = weeklyReset(userData.xiaResult.tdee);
+    const compensation = getTodayCompensation(userData.xiaResult.tdee);
+
+    if (compensation !== 0) {
+        // 有补偿 → 弹窗确认后再继续
+        showCompensationPopup(compensation, userData.xiaResult.tdee, ratio, bmr, userData, weekMsg, macros);
+        return;
+    }
+
+    // 无补偿 → 直接生成
+    finishApplyMacroRatios(userData, ratio, bmr, macros, 0, '', weekMsg);
+}
+
+/**
+ * 补偿弹窗确认/跳过后的后续流程
+ */
+function finishApplyMacroRatios(userData, ratio, bmr, macros, compensation, compensationMsg, weekMsg) {
+    let displayMacros = macros;
+    if (compensation !== 0) {
+        const adjustedTDEE = userData.xiaResult.tdee + compensation;
+        displayMacros = calculateDailyMacros(adjustedTDEE, ratio);
+        const sign = compensation > 0 ? '➕' : '➖';
+        compensationMsg = `${sign} 昨日偏差补偿：${Math.abs(compensation)} kcal`;
+    }
+
+    // 隐藏档位选择，显示结果
+    document.getElementById('profileSelectorCard').style.display = 'none';
+    const resultSection = document.getElementById('resultSectionInPage');
+    resultSection.style.display = 'block';
+
+    // 渲染结果到resultContentInPage
+    renderResultsInPage(userData, userData.xiaResult, bmr, displayMacros, compensationMsg);
+
+    if (weekMsg) showToast(weekMsg, 'info');
+    showToast(`✅ 营养方案已生成（${ratio.profileName}）${compensationMsg ? ' · ' + compensationMsg : ''}`, 'success');
+}
+
+/**
+ * 能量补偿自定义弹窗
+ */
+function showCompensationPopup(compensation, tdee, ratio, bmr, userData, weekMsg, macros) {
+    const absKcal = Math.abs(compensation);
+    const todayTarget = tdee + compensation;
+    const isUp = compensation > 0;
+
+    const overlay = document.createElement('div');
+    overlay.className = 'compensation-overlay';
+    overlay.id = 'compensationOverlay';
+
+    const icon = isUp ? '🔋' : '⚖️';
+    const title = isUp ? '能量补偿' : '能量平衡';
+    const desc = isUp
+        ? '昨天吃得不够，今天帮你把缺口补上'
+        : '昨天吃得偏多，今天适当平衡一下';
+    const highlightClass = isUp ? 'up' : 'down';
+    const highlightText = isUp
+        ? `今日目标：${todayTarget} kcal（上调 +${absKcal} kcal）`
+        : `今日目标：${todayTarget} kcal（下调 -${absKcal} kcal）`;
+
+    overlay.innerHTML = `
+        <div class="compensation-popup">
+            <div class="compensation-icon">${icon}</div>
+            <div class="compensation-body">
+                <div class="compensation-title">${title}</div>
+                <div class="compensation-desc">${desc}</div>
+                <div class="compensation-highlight ${highlightClass}">${highlightText}</div>
+            </div>
+            <div class="compensation-actions">
+                <button class="btn-secondary" id="compSkipBtn">跳过，不调整</button>
+                <button class="btn-primary" id="compConfirmBtn">确认调整</button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    // 点击遮罩不关闭（强制用户做出选择）
+    // overlay.addEventListener('click', (e) => { if (e.target === overlay) closeCompensationPopup(false); });
+
+    document.getElementById('compConfirmBtn').addEventListener('click', () => {
+        document.body.removeChild(overlay);
+        finishApplyMacroRatios(userData, ratio, bmr, macros, compensation, '', weekMsg);
+    });
+
+    document.getElementById('compSkipBtn').addEventListener('click', () => {
+        document.body.removeChild(overlay);
+        finishApplyMacroRatios(userData, ratio, bmr, macros, 0, '', weekMsg);
+    });
+}
+
+/**
+ * 通用确认对话框
+ * @param {Object} options - { title, message, confirmText, cancelText, danger, onConfirm, onCancel }
+ */
+function showConfirmDialog(options) {
+    const {
+        title = '确认操作',
+        message = '',
+        confirmText = '确定',
+        cancelText = '取消',
+        danger = false,
+        onConfirm = null,
+        onCancel = null
+    } = options;
+
+    const overlay = document.createElement('div');
+    overlay.className = 'dialog-overlay';
+    overlay.id = 'confirmDialogOverlay';
+
+    overlay.innerHTML = `
+        <div class="dialog-popup${danger ? ' danger' : ''}">
+            <div class="dialog-body">
+                <div class="dialog-title">${title}</div>
+                <div class="dialog-message">${message.replace(/\n/g, '<br>')}</div>
+            </div>
+            <div class="dialog-actions">
+                <button class="btn-secondary" id="confirmDialogCancel">${cancelText}</button>
+                <button class="btn-primary" id="confirmDialogOk">${confirmText}</button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    const close = () => {
+        if (document.body.contains(overlay)) document.body.removeChild(overlay);
+    };
+
+    document.getElementById('confirmDialogOk').addEventListener('click', () => {
+        close();
+        if (onConfirm) onConfirm();
+    });
+
+    document.getElementById('confirmDialogCancel').addEventListener('click', () => {
+        close();
+        if (onCancel) onCancel();
+    });
+}
+
+/**
+ * 渲染结果到resultPageSection里
+ */
+function renderResultsInPage(userData, xiaResult, bmr, macros, compensationMsg) {
+    const container = document.getElementById('resultContentInPage');
+    if (!container) return;
+
+    // 计算BMI
+    const bmiValue = calculateBMI(userData.height, userData.weight);
+    const bmiInfo = getBMIStatus(bmiValue);
+
+    // 补偿信息显示（如果有）
+    const compHtml = compensationMsg ? `
+        <div style="margin:8px 0;padding:8px 12px;background:#fff3cd;border-radius:8px;font-size:0.85rem;color:#856404;">
+            ${compensationMsg}
+        </div>
+    ` : '';
+
+    container.innerHTML = `
+        <div style="margin-bottom:16px;">
+            <button class="btn-secondary" onclick="backToProfileSelector()" style="display:inline-flex;align-items:center;gap:4px;padding:8px 16px;border-radius:8px;background:#f0f0f0;border:none;cursor:pointer;font-size:0.9rem;color:#555;">
+                ← 返回修改方案
+            </button>
+        </div>
+        ${compHtml}
+        <div class="result-summary">
+            <div class="summary-item">
+                <span class="summary-label">BMI</span>
+                <span class="summary-value">${bmiValue.toFixed(1)}</span>
+                <span class="summary-status ${bmiInfo.className}">${bmiInfo.status}</span>
+            </div>
+            <div class="summary-item">
+                <span class="summary-label">基础代谢BMR</span>
+                <span class="summary-value">${Math.round(bmr)}</span>
+                <span class="summary-unit">kcal/天</span>
+            </div>
+            <div class="summary-item highlight">
+                <span class="summary-label">每日总消耗TDEE</span>
+                <span class="summary-value">${xiaResult.tdee}</span>
+                <span class="summary-unit">kcal/天</span>
+            </div>
+        </div>
+        <h3>🍽️ 每日营养目标</h3>
+        <div class="macro-display">
+            <div class="macro-item protein">
+                <div class="macro-circle"><span class="macro-percent">${macros.protein.percent}%</span></div>
+                <div class="macro-info">
+                    <strong>蛋白质</strong>
+                    <span>${macros.protein.grams}g</span>
+                    <small>${macros.protein.kcal} kcal</small>
+                </div>
+            </div>
+            <div class="macro-item fat">
+                <div class="macro-circle"><span class="macro-percent">${macros.fat.percent}%</span></div>
+                <div class="macro-info">
+                    <strong>脂肪</strong>
+                    <span>${macros.fat.grams}g</span>
+                    <small>${macros.fat.kcal} kcal</small>
+                </div>
+            </div>
+            <div class="macro-item carb">
+                <div class="macro-circle"><span class="macro-percent">${macros.carb.percent}%</span></div>
+                <div class="macro-info">
+                    <strong>碳水</strong>
+                    <span>${macros.carb.grams}g</span>
+                    <small>${macros.carb.kcal} kcal</small>
+                </div>
+            </div>
+            <div class="macro-item water">
+                <div class="macro-circle" style="font-size:1.8rem;">💧</div>
+                <div class="macro-info">
+                    <strong>水</strong>
+                    <span>1200~1500ml</span>
+                    <small>白开水、茶水最佳</small>
+                </div>
+            </div>
+        </div>
+        <div id="mealPlanInPage"></div>
+        <h3>⚠️ 注意事项</h3>
+        <div class="warnings" id="warningsInPage"></div>
+    `;
+
+    // 渲染分餐方案
+    let mealPlan = null;
+    try {
+        mealPlan = generateMealPlan(macros);
+        const mealPlanEl = document.getElementById('mealPlanInPage');
+        if (mealPlanEl) mealPlanEl.innerHTML = renderMealPlanTable(mealPlan);
+        // 生成成功后存入历史（供打卡和日历视图使用）
+        savePlanToHistory(mealPlan);
+    } catch(e) {
+        console.warn('分餐方案渲染失败:', e);
+    }
+    // 渲染矿物质维生素达标率
+    if (mealPlan && userData) {
+        renderMVDashboard(mealPlan, userData);
+    }
+    // 渲染注意事项
+    renderWarnings(userData, { bmr, tdee: xiaResult.tdee, macros }, 'warningsInPage');
+}
+
+// ============================================
+// 每日打卡弹窗
+// ============================================
+
+/**
+ * 显示昨日打卡弹窗
+ * @param {string} dateStr - 'YYYY-MM-DD'
+ * @param {object} historyRecord - getDayHistory() 的返回
+ * @param {string} [mode='checkin'] - 'checkin' | 'modify'
+ */
+function showCheckInPopup(dateStr, historyRecord, mode) {
+    if (!historyRecord || !historyRecord.plan) return;
+    mode = mode || 'checkin';
+
+    // 重置自定义食物（修改模式也会重置，让用户重新调整）
+    checkinCustomFoods = { '早餐': [], '午餐': [], '加餐': [], '晚餐': [] };
+
+    const overlay = document.createElement('div');
+    overlay.className = 'checkin-overlay';
+    overlay.id = 'checkinOverlay';
+    overlay.dataset.mode = mode;  // 存模式，提交时读取
+
+    const popup = document.createElement('div');
+    popup.className = 'checkin-popup';
+    popup.innerHTML = buildCheckInHTML(dateStr, historyRecord.plan, mode);
+
+    overlay.appendChild(popup);
+    document.body.appendChild(overlay);
+
+    // 点击遮罩关闭
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) closeCheckInPopup();
+    });
+}
+
+/**
+ * 生成打卡弹窗HTML
+ * @param {string} dateStr
+ * @param {object} plan
+ * @param {string} mode - 'checkin' | 'modify'
+ */
+function buildCheckInHTML(dateStr, plan, mode) {
+    mode = mode || 'checkin';
+    const dateLabel = dateStr.replace(/-/g, '/');
+    const weekDays = ['周日','周一','周二','周三','周四','周五','周六'];
+    const d = new Date(dateStr);
+    const weekDay = weekDays[d.getDay()];
+    const isModify = (mode === 'modify');
+    const headerIcon = isModify ? '✏️' : '📋';
+    const headerText = isModify ? `修改打卡（${dateLabel} 周${weekDay}）` : `昨天（${dateLabel} 周${weekDay}）吃了吗？`;
+
+    // 四餐勾选区块
+    const meals = [
+        { key: '早餐', data: plan.breakfast },
+        { key: '午餐', data: plan.lunch },
+        { key: '加餐', data: plan.snack },
+        { key: '晚餐', data: plan.dinner }
+    ];
+
+    let mealsHtml = '';
+    for (const meal of meals) {
+        if (!meal.data || !meal.data.foods) continue;
+        const foodKeys = Object.keys(meal.data.foods);
+        let foodHtml = '';
+        for (const fk of foodKeys) {
+            const food = meal.data.foods[fk];
+            if (!food || !food.name) continue;
+            foodHtml += `
+                <label class="checkin-food-item">
+                    <input type="checkbox" class="checkin-food-cb" checked
+                        data-meal="${meal.key}" data-food="${food.name}"
+                        data-grams="${food.grams || 0}">
+                    <span class="checkin-food-name">${food.name}</span>
+                    <span class="checkin-food-grams">${food.grams || 0}g</span>
+                </label>
+            `;
+        }
+        if (foodHtml) {
+            mealsHtml += `
+                <div class="checkin-meal-section">
+                    <div class="checkin-meal-title">${meal.key}</div>
+                    ${foodHtml}
+                    <div class="checkin-add-food" data-meal="${meal.key}">
+                        + 添加食物
+                    </div>
+                    <div class="checkin-search-area" id="checkinSearch_${meal.key}" style="display:none;">
+                        <input type="text" class="checkin-search-input" placeholder="搜索食物名..."
+                            data-meal="${meal.key}">
+                        <div class="checkin-search-results" id="checkinResults_${meal.key}"></div>
+                    </div>
+                    <div class="checkin-custom-foods" id="checkinCustom_${meal.key}"></div>
+                </div>
+            `;
+        }
+    }
+
+    // 底部实时统计
+    return `
+        <div class="checkin-header">
+            <h3>${headerIcon} ${headerText}</h3>
+            <button class="checkin-close-btn" onclick="closeCheckInPopup()">✕</button>
+        </div>
+        <div class="checkin-body">
+            ${mealsHtml}
+        </div>
+        <div class="checkin-summary" id="checkinSummary">
+            <div class="checkin-summary-row">
+                <span>能量</span>
+                <span id="checkinEnergy" class="checkin-summary-val">--</span>
+            </div>
+            <div class="checkin-summary-row">
+                <span>蛋白质</span>
+                <span id="checkinProtein" class="checkin-summary-val">--</span>
+            </div>
+            <div class="checkin-summary-row">
+                <span>碳水</span>
+                <span id="checkinCarb" class="checkin-summary-val">--</span>
+            </div>
+            <div class="checkin-summary-row">
+                <span>脂肪</span>
+                <span id="checkinFat" class="checkin-summary-val">--</span>
+            </div>
+        </div>
+        <div class="checkin-actions">
+            <button class="btn-secondary" onclick="closeCheckInPopup()">${isModify ? '取消' : '跳过'}</button>
+            <button class="btn-primary" onclick="submitCheckIn('${dateStr}')">✔ ${isModify ? '更新提交' : '确定提交'}</button>
+        </div>
+    `;
+}
+
+// ============================================
+// 打卡弹窗 - 食物搜索
+// ============================================
+
+// 存储自定义添加的食物
+let checkinCustomFoods = { '早餐': [], '午餐': [], '加餐': [], '晚餐': [] };
+
+// 事件代理：点击「添加食物」展开搜索
+document.addEventListener('click', function(e) {
+    const addBtn = e.target.closest('.checkin-add-food');
+    if (addBtn) {
+        const meal = addBtn.dataset.meal;
+        const searchArea = document.getElementById('checkinSearch_' + meal);
+        if (searchArea) {
+            const isVisible = searchArea.style.display !== 'none';
+            searchArea.style.display = isVisible ? 'none' : 'block';
+            if (!isVisible) {
+                const input = searchArea.querySelector('.checkin-search-input');
+                if (input) { input.value = ''; input.focus(); }
+                document.getElementById('checkinResults_' + meal).innerHTML = '';
+            }
+        }
+    }
+});
+
+// 事件代理：搜索输入框实时过滤
+document.addEventListener('input', function(e) {
+    const input = e.target.closest('.checkin-search-input');
+    if (input) {
+        const meal = input.dataset.meal;
+        const query = input.value.trim().toLowerCase();
+        const resultsEl = document.getElementById('checkinResults_' + meal);
+        if (!resultsEl) return;
+        if (query.length < 1) { resultsEl.innerHTML = ''; return; }
+        // 从FOOD_DATABASE搜索
+        const matches = FOOD_DATABASE.filter(f =>
+            f.name.toLowerCase().includes(query) ||
+            (f.aliases && f.aliases.some(a => a.toLowerCase().includes(query)))
+        ).slice(0, 10);
+        resultsEl.innerHTML = matches.map(f => {
+            const alreadyAdded = (checkinCustomFoods[meal] || []).some(c => c.name === f.name);
+            return `<div class="checkin-search-item ${alreadyAdded ? 'disabled' : ''}"
+                        onclick="${alreadyAdded ? '' : "selectSearchFood('" + meal + "','" + f.name.replace(/'/g, "\\'") + "')"}">
+                        ${f.name}
+                        <span class="checkin-search-cat">${f.category || ''}</span>
+                        ${alreadyAdded ? '<span style="color:#999;font-size:0.75rem;">（已添加）</span>' : ''}
+                    </div>`;
+        }).join('');
+    }
+});
+
+/**
+ * 选中搜索结果 → 添加为自定义食物
+ */
+function selectSearchFood(meal, foodName) {
+    if (!checkinCustomFoods[meal]) checkinCustomFoods[meal] = [];
+    if (checkinCustomFoods[meal].some(c => c.name === foodName)) return; // 已存在
+    
+    // 查默认克数
+    const foodData = findFoodNutrition(foodName);
+    const defaultGrams = 100;
+    checkinCustomFoods[meal].push({ name: foodName, grams: defaultGrams });
+    
+    // 重新渲染自定义食物区
+    renderCustomFoods(meal);
+    // 清空搜索结果
+    const resultsEl = document.getElementById('checkinResults_' + meal);
+    if (resultsEl) resultsEl.innerHTML = '';
+    // 更新统计
+    updateCheckinSummary();
+}
+
+/**
+ * 渲染某餐的自定义食物列表
+ */
+function renderCustomFoods(meal) {
+    const container = document.getElementById('checkinCustom_' + meal);
+    if (!container) return;
+    const foods = checkinCustomFoods[meal] || [];
+    container.innerHTML = foods.map((f, i) => `
+        <label class="checkin-food-item">
+            <input type="checkbox" class="checkin-food-cb" checked
+                data-meal="${meal}" data-food="${f.name}"
+                data-grams="${f.grams}">
+            <span class="checkin-food-name">${f.name}</span>
+            <input type="number" class="checkin-custom-grams" value="${f.grams}"
+                data-meal="${meal}" data-index="${i}"
+                onchange="onCustomGramsChange(this)" min="1" max="999">
+            <span class="checkin-food-grams">g</span>
+            <span class="checkin-remove-food" onclick="removeCustomFood('${meal}',${i})">✕</span>
+        </label>
+    `).join('');
+}
+
+/**
+ * 修改自定义食物克数
+ */
+function onCustomGramsChange(input) {
+    const meal = input.dataset.meal;
+    const idx = parseInt(input.dataset.index);
+    const val = parseInt(input.value) || 0;
+    if (checkinCustomFoods[meal] && checkinCustomFoods[meal][idx]) {
+        checkinCustomFoods[meal][idx].grams = val;
+        // 更新对应 checkbox 的 data-grams
+        const checkbox = input.closest('.checkin-food-item').querySelector('.checkin-food-cb');
+        if (checkbox) checkbox.dataset.grams = val;
+        updateCheckinSummary();
+    }
+}
+
+/**
+ * 删除自定义食物
+ */
+function removeCustomFood(meal, index) {
+    if (checkinCustomFoods[meal]) {
+        checkinCustomFoods[meal].splice(index, 1);
+        renderCustomFoods(meal);
+        updateCheckinSummary();
+    }
+}
+
+/**
+ * 计算勾选食物的合计营养
+ */
+function calcCheckedNutrition() {
+    const cbs = document.querySelectorAll('.checkin-food-cb:checked');
+    let totalEnergy = 0;
+    let totalProtein = 0;
+    let totalCarb = 0;
+    let totalFat = 0;
+    for (const cb of cbs) {
+        const name = cb.dataset.food;
+        const grams = parseFloat(cb.dataset.grams) || 0;
+        const foodData = findFoodNutrition(name);
+        if (foodData && foodData.per100g) {
+            const ratio = grams / 100;
+            totalEnergy += (foodData.per100g.calories || 0) * ratio;
+            totalProtein += (foodData.per100g.protein || 0) * ratio;
+            totalCarb += (foodData.per100g.carbs || 0) * ratio;
+            totalFat += (foodData.per100g.fat || 0) * ratio;
+        }
+    }
+    return {
+        energy: Math.round(totalEnergy),
+        protein: Math.round(totalProtein),
+        carb: Math.round(totalCarb),
+        fat: Math.round(totalFat)
+    };
+}
+
+/**
+ * 更新弹窗底部统计
+ */
+function updateCheckinSummary() {
+    const n = calcCheckedNutrition();
+    const enEl = document.getElementById('checkinEnergy');
+    const prEl = document.getElementById('checkinProtein');
+    const caEl = document.getElementById('checkinCarb');
+    const faEl = document.getElementById('checkinFat');
+    if (enEl) enEl.textContent = `${n.energy} kcal`;
+    if (prEl) prEl.textContent = `${n.protein} g`;
+    if (caEl) caEl.textContent = `${n.carb} g`;
+    if (faEl) faEl.textContent = `${n.fat} g`;
+}
+
+/**
+ * 提交打卡
+ * @param {string} dateStr
+ */
+function submitCheckIn(dateStr) {
+    const actual = calcCheckedNutrition();
+    // 保存实际数据
+    updateCheckInData(dateStr, actual);
+    // 标记已打卡
+    const data = getCheckinData();
+    data[dateStr] = true;
+    saveCheckinData(data);
+
+    // 算偏差
+    const userData = users[currentUser];
+    if (userData && userData.xiaResult) {
+        submitDeviation(actual.energy, userData.xiaResult.tdee, dateStr);
+    }
+
+    // 判断是否为修改模式
+    const overlay = document.getElementById('checkinOverlay');
+    const isModify = overlay && overlay.dataset.mode === 'modify';
+
+    // 关闭弹窗
+    if (overlay) overlay.remove();
+
+    if (isModify) {
+        // 修改模式：刷新日历详情，不重生成方案
+        const { renderCalendarPage } = window;
+        if (typeof renderCalendarPage === 'function') renderCalendarPage();
+        showToast('✅ 打卡数据已更新', 'success');
+    } else {
+        // 正常打卡模式：重新生成方案（带补偿）
+        const idx = pendingProfileIndex;
+        pendingProfileIndex = null;
+        if (idx !== null) {
+            selectLowCarbProfileForPage(idx);
+        }
+    }
+}
+
+/**
+ * 跳过打卡
+ */
+function closeCheckInPopup() {
+    const overlay = document.getElementById('checkinOverlay');
+    if (!overlay) return;
+
+    const isModify = overlay.dataset.mode === 'modify';
+    overlay.remove();
+
+    if (isModify) {
+        // 修改模式取消：关闭弹窗，不标记跳过，不重生成
+        return;
+    }
+
+    // 正常模式：标记昨天为「跳过」，下次不再弹
+    const yesterday = getYesterdayStr();
+    const data = getCheckinData();
+    data[yesterday] = 'skipped';
+    saveCheckinData(data);
+
+    // 重新触发方案生成
+    const idx = pendingProfileIndex;
+    pendingProfileIndex = null;
+    if (idx !== null) {
+        selectLowCarbProfileForPage(idx);
+    }
+}
+
+// 给 checkin-food-cb 绑定变更事件（代理监听）
+document.addEventListener('change', function(e) {
+    if (e.target && e.target.classList.contains('checkin-food-cb')) {
+        updateCheckinSummary();
+    }
+});
+function selectLowCarbProfile(profileIndex) {
+    const userData = users[currentUser];
+    if (!userData || !userData.xiaResult) {
+        showToast('请先填写基本信息', 'error');
+        return;
+    }
+
+    const profile = lowCarbProfiles[profileIndex];
+    const ratio = {
+        protein: profile['蛋白质比例'],
+        fat: profile['脂肪比例'],
+        carb: profile['碳水默认']
+    };
+
+    const bmr = calculateBMR(userData.gender, userData.age, userData.height, userData.weight);
+    const macros = calculateDailyMacros(userData.xiaResult.tdee, ratio);
+
+    // 隐藏档位选择，显示结果
+    document.getElementById('profileSelectorSection').style.display = 'none';
+    document.getElementById('resultSection').style.display = 'block';
+
+    renderResults_XiaMeng(userData, userData.xiaResult, bmr, macros);
+
+    showToast(`✅ 已选择「${profile['方案名称']}」，营养方案已生成`, 'success');
+}
+
+/**
+ * 在结果页渲染夏萌方法的计算明细
+ */
+function renderXiaMengDetail(r) {
+    // 在 tdeeValue 后面插入一行说明（如果已存在则更新）
+    const tdeeValueEl = document.getElementById('tdeeValue');
+    if (!tdeeValueEl) return;
+
+    let detailEl = document.getElementById('xiaMengDetail');
+    if (!detailEl) {
+        detailEl = document.createElement('div');
+        detailEl.id = 'xiaMengDetail';
+        detailEl.className = 'xia-meng-detail';
+        tdeeValueEl.closest('.summary-item').appendChild(detailEl);
+    }
+
+    detailEl.innerHTML = `
+        <div class="xia-detail-row"><span>标准体重</span><strong>${r.stdWeight} kg</strong></div>
+        <div class="xia-detail-row"><span>使用体重</span><strong>${r.weightType} ${r.targetWeight} kg</strong></div>
+        <div class="xia-detail-row"><span>能量系数</span><strong>${r.energyCoeff} kcal/kg</strong></div>
+        <div class="xia-detail-row"><span>年龄系数</span><strong>${r.ageFactor}</strong></div>
+        <div class="xia-detail-formula">${r.targetWeight} × ${r.energyCoeff} × ${r.ageFactor} = <b>${r.tdee} kcal/d</b></div>
+    `;
+}
+
+//////////////////////////////////////////////////
+// 以下是原有 renderResults 函数（保留作对比，暂未删除）
+//////////////////////////////////////////////////
+
+/**
+ * 渲染计算结果（原Mifflin-St Jeor方法，保留）
+ */
+function renderResults(formData, results) {
+    const resultSection = document.getElementById('resultSection');
+    const inputSection = document.getElementById('inputSection');
+
+    // 显示结果区，隐藏输入区
+    resultSection.style.display = 'block';
+    inputSection.style.display = 'none';
+
+    // 基本信息
+    document.getElementById('resultName').textContent = formData.name;
+
+    // BMI
+    const bmiValue = calculateBMI(formData.height, formData.weight);
+    const bmiInfo = getBMIStatus(bmiValue);
+    document.getElementById('bmiValue').textContent = bmiValue.toFixed(1);
+    const bmiStatus = document.getElementById('bmiStatus');
+    bmiStatus.textContent = bmiInfo.status;
+    bmiStatus.className = `summary-status ${bmiInfo.className}`;
+
+    // BMR & TDEE
+    document.getElementById('bmrValue').textContent = Math.round(results.bmr);
+    document.getElementById('tdeeValue').textContent = Math.round(results.tdee);
+
+    // 三大营养素
+    const macros = results.macros;
+
+    // 更新圆形进度
+    updateMacroCircle('protein', macros.protein.percent);
+    updateMacroCircle('fat', macros.fat.percent);
+    updateMacroCircle('carb', macros.carb.percent);
+
+    document.getElementById('proteinPercent').textContent = `${macros.protein.percent}%`;
+    document.getElementById('proteinGrams').textContent = `${macros.protein.grams}g`;
+    document.getElementById('proteinKcal').textContent = `${macros.protein.kcal} kcal`;
+
+    document.getElementById('fatPercent').textContent = `${macros.fat.percent}%`;
+    document.getElementById('fatGrams').textContent = `${macros.fat.grams}g`;
+    document.getElementById('fatKcal').textContent = `${macros.fat.kcal} kcal`;
+
+    document.getElementById('carbPercent').textContent = `${macros.carb.percent}%`;
+    document.getElementById('carbGrams').textContent = `${macros.carb.grams}g`;
+    document.getElementById('carbKcal').textContent = `${macros.carb.kcal} kcal`;
+
+    // 食物换算
+    renderFoodExchange(macros);
+
+    // 注意事项
+    renderWarnings(formData, results);
+
+    // 保存当前用户数据（保留已有属性如 xiaResult）
+    users[currentUser] = {
+        ...users[currentUser],
+        formData: { ...formData },
+        results: { ...results },
+    };
+
+    // 更新URL参数（用于分享）
+    updateURLParams(formData);
+
+    // 滚动到结果
+    resultSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+/**
+ * 更新营养素圆形显示
+ */
+function updateMacroCircle(type, percent) {
+    const circle = document.getElementById(`${type}Circle`);
+    const colors = {
+        protein: 'var(--protein)',
+        fat: 'var(--fat)',
+        carb: 'var(--carb)',
+    };
+    circle.style.background = `conic-gradient(${colors[type]} ${percent}%, #e0e0e0 0%)`;
+}
+
+/**
+ * 计算食物换算（根据营养素克数推荐食物）
+ */
+function calculateFoodExchange(proteinGrams, fatGrams, carbGrams) {
+    return {
+        proteinSources: [
+            { icon: '🥩', name: '瘦肉（猪/牛/羊）', grams: Math.round(proteinGrams * 2) },
+            { icon: '🐟', name: '鱼肉', grams: Math.round(proteinGrams * 1.5) },
+            { icon: '🥚', name: '鸡蛋', grams: Math.round(proteinGrams * 1.2) },
+            { icon: '🦐', name: '虾/贝类', grams: Math.round(proteinGrams * 1.8) },
+        ],
+        fatSources: [
+            { icon: '🥑', name: '牛油果', grams: Math.round(fatGrams * 1.5) },
+            { icon: '🫒', name: '橄榄油', grams: Math.round(fatGrams * 1.1) },
+            { icon: '🥜', name: '坚果', grams: Math.round(fatGrams * 0.6) },
+            { icon: '🐟', name: '深海鱼', grams: Math.round(fatGrams * 1.2) },
+        ],
+        carbSources: [
+            { icon: '🥬', name: '绿叶蔬菜', grams: Math.round(carbGrams * 5) },
+            { icon: '🥦', name: '西兰花', grams: Math.round(carbGrams * 3) },
+            { icon: '🍄', name: '菌菇类', grams: Math.round(carbGrams * 2.5) },
+            { icon: '🍚', name: '糙米/杂粮', grams: Math.round(carbGrams * 1.2) },
+        ],
+    };
+}
+
+/**
+ * 渲染食物换算
+ */
+function renderFoodExchange(macros, containerId = 'foodExchange') {
+    const container = document.getElementById(containerId);
+    const exchange = calculateFoodExchange(macros.protein.grams, macros.fat.grams, macros.carb.grams);
+
+    let html = '';
+
+    // 蛋白质食物
+    exchange.proteinSources.forEach(food => {
+        html += `
+        <div class="food-item">
+            <span class="food-icon">${food.icon}</span>
+            <div class="food-details">
+                <strong>${food.name}</strong>
+                <small>约${food.grams}g/天</small>
+            </div>
+        </div>`;
+    });
+
+    // 脂肪食物
+    exchange.fatSources.forEach(food => {
+        html += `
+        <div class="food-item">
+            <span class="food-icon">${food.icon}</span>
+            <div class="food-details">
+                <strong>${food.name}</strong>
+                <small>约${food.grams}g/天</small>
+            </div>
+        </div>`;
+    });
+
+    // 碳水食物（需要控制）
+    exchange.carbSources.forEach(food => {
+        html += `
+        <div class="food-item">
+            <span class="food-icon">${food.icon}</span>
+            <div class="food-details">
+                <strong>${food.name} <small style="color:var(--warning)">⚠️控量</small></strong>
+                <small>约${food.grams}g/天</small>
+            </div>
+        </div>`;
+    });
+
+    container.innerHTML = html;
+}
+
+/**
+ * 渲染注意事项
+ */
+function renderWarnings(formData, results, containerId = 'warnings') {
+    const container = document.getElementById(containerId);
+    const warnings = [];
+
+    // 基础建议
+    warnings.push({ type: 'success', text: '普通人每天饮水1200～1500ml，通过观察口渴感、尿液颜色和排尿频率来判断是否合适，天热或运动多时要多喝水' });
+    warnings.push({ type: 'success', text: '优先选择深色蔬菜，每天不少于500g' });
+    warnings.push({ type: 'success', text: '蛋白质分3-4餐摄入，避免集中过多' });
+
+    // 根据BMI给出建议
+    const bmi = calculateBMI(formData.height, formData.weight);
+    if (bmi >= 24) {
+        warnings.push({ type: 'normal', text: '体重偏高，建议碳水摄入取下限，脂肪适度增加' });
+    }
+    if (bmi >= 28) {
+        warnings.push({ type: 'normal', text: '体重偏高，建议控制碳水摄入，优先选择低GI食物' });
+    }
+
+    if (formData.activity === '1.9') {
+        warnings.push({ type: 'danger', text: '⚠️ 重体力劳动者需注意能量充足摄入，避免过度节食' });
+    }
+
+    if (formData.age > 60) {
+        warnings.push({ type: 'normal', text: '60岁以上人群需注意营养均衡，保证足量蛋白质摄入' });
+    }
+
+    let html = '<ul>';
+    warnings.forEach(w => {
+        html += `<li class="${w.type}">${w.text}</li>`;
+    });
+    html += '</ul>';
+    container.innerHTML = html;
+}
+
+// ============================================
+// URL参数分享功能
+// ============================================
+
+/**
+ * 更新URL参数
+ */
+function updateURLParams(data) {
+    const params = new URLSearchParams();
+    params.set('u', currentUser);
+    params.set('n', data.name);
+    params.set('g', data.gender === 'male' ? '1' : '0');
+    params.set('a', data.age);
+    params.set('h', data.height);
+    params.set('w', data.weight);
+    params.set('v', data.activity);
+
+    const newURL = `${window.location.pathname}?${params.toString()}`;
+    window.history.replaceState({}, '', newURL);
+}
+
+/**
+ * 从URL加载参数
+ */
+function loadFromURL() {
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('u')) {
+        const userIndex = parseInt(params.get('u')) || 0;
+        switchUser(userIndex);
+    }
+    if (params.has('n')) {
+        const data = {
+            name: params.get('n'),
+            gender: params.get('g') === '1' ? 'male' : 'female',
+            age: parseInt(params.get('a')) || 40,
+            height: parseFloat(params.get('h')) || 170,
+            weight: parseFloat(params.get('w')) || 70,
+            activity: parseFloat(params.get('v')) || 1.55,
+        };
+        populateForm(data);
+
+        // 自动计算（夏萌标准体重法）
+        const xiaResult = calculateTDEE_XiaMeng(
+            data.height, data.weight, data.age, data.activity
+        );
+        const bmr = calculateBMR(data.gender, data.age, data.height, data.weight);
+        const macros = calculateDailyMacros(xiaResult.tdee);
+
+        renderResults_XiaMeng(data, xiaResult, bmr, macros);
+    }
+}
+
+/**
+ * 分享功能
+ */
+function showShareModal() {
+    const url = window.location.href;
+
+    const overlay = document.createElement('div');
+    overlay.className = 'share-overlay';
+    overlay.innerHTML = `
+        <div class="modal">
+            <h3>🔗 分享你的营养方案</h3>
+            <p>复制以下链接，分享给家人朋友<br>每个人的数据是独立的，互不影响</p>
+            <input type="text" class="share-url" value="${url}" readonly onclick="this.select()">
+            <button class="close-btn" onclick="this.closest('.share-overlay').remove()">关闭</button>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+
+    // 点击遮罩关闭
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) overlay.remove();
+    });
+}
+
+// ============================================
+// 用户切换
+// ============================================
+
+function switchUser(index) {
+    if (index < 0 || index >= MAX_USERS) return;
+
+    currentUser = index;
+
+    // 更新标签样式
+    document.querySelectorAll('.tab-btn').forEach((btn, i) => {
+        btn.classList.toggle('active', i === index);
+    });
+
+    // 加载该用户数据到表单
+    const userData = users[index];
+    if (userData && userData.formData) {
+        populateForm(userData.formData);
+        // 如果有计算结果也显示
+        if (userData.results) {
+            renderResults(userData.formData, userData.results);
+        } else {
+            hideResults();
+        }
+    } else {
+        // 清空表单
+        document.getElementById('name').value = `用户${index + 1}`;
+        hideResults();
+    }
+}
+
+function hideResults() {
+    document.getElementById('resultSection').style.display = 'none';
+    document.getElementById('inputSection').style.display = 'block';
+}
+
+// ============================================
+// 矿物质&维生素达标率
+// ============================================
+
+/** 年龄→年龄组映射 */
+function getAgeGroup(age) {
+    if (age < 1) return '0岁~';
+    if (age < 4) return '1岁~';
+    if (age < 7) return '4岁~';
+    if (age < 11) return '7岁~';
+    if (age < 14) return '11岁~';
+    if (age < 18) return '14岁~';
+    if (age < 50) return '18岁~';
+    if (age < 65) return '50岁~';
+    if (age < 80) return '65岁~';
+    return '80岁~';
+}
+
+/** 性别映射 */
+function getGenderLabel(gender) {
+    return gender === 'male' ? '男' : '女';
+}
+
+/** 从Supabase查询推荐摄入量 */
+async function getRDI(age, gender) {
+    try {
+        const sb = getSupabase();
+        if (!sb) return null;
+        const group = getAgeGroup(age);
+        const gen = getGenderLabel(gender);
+        const { data, error } = await sb
+            .from('dietary_reference_intakes')
+            .select('*')
+            .eq('age_group', group)
+            .eq('gender', gen)
+            .limit(1);
+        if (error || !data || data.length === 0) return null;
+        return data[0];
+    } catch(e) {
+        console.warn('获取推荐摄入量失败:', e);
+        return null;
+    }
+}
+
+/** 从分餐方案计算矿物质维生素总摄入量 */
+function calcMVIntake(mealPlan) {
+    if (!mealPlan) return null;
+    const totals = {};
+    const meals = ['breakfast', 'lunch', 'snack', 'dinner'];
+    
+    for (const meal of meals) {
+        const foods = mealPlan[meal]?.foods;
+        if (!foods) continue;
+        for (const key of Object.keys(foods)) {
+            const item = foods[key];
+            if (!item || !item.name || !item.grams || item.grams <= 0) continue;
+            
+            // 从FOOD_DATABASE找食物ID
+            const foodData = findFoodNutrition(item.name);
+            if (!foodData || !foodData.id) continue;
+            
+            // 从MINERALS_VITAMINS查找矿物质数据
+            const mv = typeof MINERALS_VITAMINS !== 'undefined' ? MINERALS_VITAMINS[foodData.id] : null;
+            if (!mv) continue;
+            
+            const factor = item.grams / 100;
+            
+            // 累加所有字段
+            const fields = ['ca','fe','zn','se','va','vb1','vb2','vc','vd','ve',
+                          'k','na','p','mag','cu','mn','iodine',
+                          'vb6','vb12','niacin','folate','vk','pantothenic','biotin'];
+            for (const f of fields) {
+                const val = mv[f];
+                if (val !== null && val !== undefined) {
+                    totals[f] = (totals[f] || 0) + val * factor;
+                }
+            }
+        }
+    }
+    return totals;
+}
+
+/** 渲染矿物质维生素达标率 */
+function renderMVDashboard(mealPlan, userData) {
+    const container = document.getElementById('mvDashboard');
+    const card = document.getElementById('mvDashboardCard');
+    if (!container || !card) return;
+    
+    const mvIntake = calcMVIntake(mealPlan);
+    const showAdvanced = false; // 默认折叠
+    
+    // 异步获取RDI
+    getRDI(userData.age, userData.gender).then(rdi => {
+        if (!rdi) {
+            card.style.display = 'none';
+            return;
+        }
+        card.style.display = 'block';
+        
+        // 核心10字段定义（维D通过日晒合成，此处不显示）
+        const coreFields = [
+            { key: 'ca', icon: '🦴', name: '钙', rdiKey: 'ca_mg', unit: 'mg', decimal: 0 },
+            { key: 'fe', icon: '🩸', name: '铁', rdiKey: 'fe_mg', unit: 'mg', decimal: 0 },
+            { key: 'zn', icon: '🧬', name: '锌', rdiKey: 'zn_mg', unit: 'mg', decimal: 1 },
+            { key: 'se', icon: '🛡️', name: '硒', rdiKey: 'se_μg', unit: 'μg', decimal: 0 },
+            { key: 'va', icon: '👁️', name: '维A', rdiKey: 'va_μg', unit: 'μg', decimal: 0 },
+            { key: 'vb1', icon: '⚡', name: '维B₁', rdiKey: 'vb1_mg', unit: 'mg', decimal: 1 },
+            { key: 'vb2', icon: '💪', name: '维B₂', rdiKey: 'vb2_mg', unit: 'mg', decimal: 1 },
+            { key: 'vc', icon: '🍊', name: '维C', rdiKey: 'vc_mg', unit: 'mg', decimal: 0 },
+            { key: 've', icon: '💧', name: '维E', rdiKey: 've_mg', unit: 'mg', decimal: 1 },
+        ];
+        
+        // 进阶14字段
+        const advFields = [
+            { key: 'k', icon: '🔋', name: '钾', rdiKey: 'k_mg', unit: 'mg', decimal: 0 },
+            { key: 'na', icon: '🧂', name: '钠', rdiKey: 'na_mg', unit: 'mg', decimal: 0 },
+            { key: 'p', icon: '🦴', name: '磷', rdiKey: 'p_mg', unit: 'mg', decimal: 0 },
+            { key: 'mag', icon: '⚙️', name: '镁', rdiKey: 'mag_mg', unit: 'mg', decimal: 0 },
+            { key: 'cu', icon: '🔩', name: '铜', rdiKey: 'cu_mg', unit: 'mg', decimal: 2 },
+            { key: 'mn', icon: '📎', name: '锰', rdiKey: 'mn_mg', unit: 'mg', decimal: 1 },
+            { key: 'iodine', icon: '🧪', name: '碘', rdiKey: 'iodine_μg', unit: 'μg', decimal: 0 },
+            { key: 'vb6', icon: '⚡', name: '维B₆', rdiKey: 'vb6_mg', unit: 'mg', decimal: 2 },
+            { key: 'vb12', icon: '🔵', name: '维B₁₂', rdiKey: 'vb12_μg', unit: 'μg', decimal: 1 },
+            { key: 'niacin', icon: '🔥', name: '烟酸', rdiKey: 'niacin_mg', unit: 'mg', decimal: 1 },
+            { key: 'folate', icon: '🍃', name: '叶酸', rdiKey: 'folate_μg', unit: 'μg', decimal: 0 },
+            { key: 'vk', icon: '🩹', name: '维K', rdiKey: 'vk_μg', unit: 'μg', decimal: 0 },
+            { key: 'pantothenic', icon: '💊', name: '泛酸', rdiKey: 'pantothenic_mg', unit: 'mg', decimal: 2 },
+            { key: 'biotin', icon: '🧫', name: '生物素', rdiKey: 'biotin_μg', unit: 'μg', decimal: 0 },
+        ];
+        
+        function renderField(field, isIntake, hasRdi) {
+            const intake = mvIntake ? Math.round((mvIntake[field.key] || 0) * (field.decimal === 0 ? 1 : 10)) / (field.decimal === 0 ? 1 : 10) : 0;
+            const target = rdi[field.rdiKey];
+            const rdiVal = target ? Math.round(target) : null;
+            
+            if (!hasRdi || rdiVal === null || rdiVal <= 0) {
+                return ''; // RDI为空时直接跳过，不显示
+            }
+            
+            const actual = Math.round(intake);
+            const pct = Math.min(Math.round(actual / rdiVal * 100), 999);
+            let cls = 'green';
+            if (pct < 50) cls = 'red';
+            else if (pct < 80) cls = 'orange';
+            else if (pct < 100) cls = 'blue';
+            
+            return `
+                <div class="mv-item">
+                    <span class="mv-icon">${field.icon}</span>
+                    <span class="mv-label">${field.name}</span>
+                    <div class="mv-bar-wrap">
+                        <div class="mv-bar-bg">
+                            <div class="mv-bar-fill ${cls}" style="width:${Math.min(pct, 100)}%"></div>
+                        </div>
+                    </div>
+                    <span class="mv-values">${actual}${field.unit} / ${rdiVal}${field.unit}</span>
+                    <span class="mv-pct ${cls}">${pct > 100 ? '>100' : pct}%</span>
+                </div>`;
+        }
+        
+        // 检查RDI是否有数据
+        const hasRdi = coreFields.some(f => {
+            const v = rdi[f.rdiKey];
+            return v !== null && v !== undefined && v > 0;
+        });
+        
+        let html = '<div class="mv-dashboard">';
+        
+        // 核心10字段
+        html += '<div class="mv-core">';
+        for (const field of coreFields) {
+            html += renderField(field, mvIntake, hasRdi);
+        }
+        html += '</div>';
+        
+        // 进阶14字段（折叠）
+        html += `<button class="mv-toggle" onclick="toggleMVAdvanced()">📋 展开全部14种进阶营养素 ▸</button>`;
+        html += `<div class="mv-advanced" id="mvAdvanced">`;
+        for (const field of advFields) {
+            html += renderField(field, mvIntake, hasRdi);
+        }
+        html += '</div>';
+        
+        // 维生素D提示
+        html += '<div class="mv-vd-tip">☀️ <strong>维生素D</strong> 主要通过皮肤经日晒合成，食物来源有限。建议每天户外活动15-30分钟。</div>';
+        
+        html += '</div>';
+        container.innerHTML = html;
+    }).catch(() => {
+        card.style.display = 'none';
+    });
+}
+
+/** 切换进阶营养素折叠状态 */
+function toggleMVAdvanced() {
+    const el = document.getElementById('mvAdvanced');
+    const btn = el?.previousElementSibling;
+    if (!el) return;
+    const show = !el.classList.contains('show');
+    el.classList.toggle('show', show);
+    if (btn) btn.textContent = show ? '📋 收起进阶营养素 ▾' : '📋 展开全部14种进阶营养素 ▸';
+}
+
+function addUser() {
+    // 简单实现：切换到下一个空槽
+    for (let i = 0; i < MAX_USERS; i++) {
+        if (Object.keys(users[i]).length === 0) {
+            switchUser(i);
+            break;
+        }
+    }
+}
+
+/**
+ * 食物数据库相关函数
+ */
+
+// 当前选中的分类
+let currentFoodCategory = null;
+
+/**
+ * 更新导航按钮状态
+ */
+function updateNavButtons(activeSection) {
+    const sections = ['calculatorSection', 'surveySection', 'foodDbSection'];
+    sections.forEach(section => {
+        const btn = document.querySelector(`[onclick="show${section.charAt(0).toUpperCase() + section.slice(1).replace('Section', '')}()"]`);
+        if (btn) {
+            btn.classList.toggle('active', section === activeSection);
+        }
+    });
+}
+
+/**
+ * 显示食物数据库页面
+ */
+function showFoodDatabase() {
+    // 隐藏其他section
+    document.getElementById('authSection').style.display = 'none';
+    document.getElementById('calculatorSection').style.display = 'none';
+    document.getElementById('surveySection').style.display = 'none';
+    document.getElementById('resultPageSection').style.display = 'none';
+    document.getElementById('foodDbSection').style.display = 'block';
+
+    // 更新导航按钮状态
+    updateNavButtons('foodDbSection');
+
+    // 初始化食物库
+    initFoodDatabase();
+
+    // 滚动到顶部
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+/**
+ * 初始化食物数据库
+ */
+function initFoodDatabase() {
+    // 渲染分类筛选按钮
+    const filterRow = document.getElementById('foodFilterRow');
+    filterRow.innerHTML = '<button class="food-filter-btn active" onclick="setFoodCategory(null)">全部</button>';
+    getCategories().forEach(cat => {
+        filterRow.innerHTML += `<button class="food-filter-btn" onclick="setFoodCategory('${cat}')">${cat}</button>`;
+    });
+
+    // 渲染网格
+    renderFoodDbGrid();
+}
+
+/**
+ * 设置食物分类筛选
+ */
+function setFoodCategory(cat) {
+    currentFoodCategory = cat;
+    document.querySelectorAll('.food-filter-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.textContent === (cat || '全部'));
+    });
+    renderFoodDbGrid();
+}
+
+/**
+ * 获取脂肪酸比例状态
+ */
+function getOmegaRatioInfo(omega3, omega6) {
+    if (!omega3 || !omega6 || omega3 === 0) {
+        return {
+            className: 'ratio-warning',
+            text: '—',
+            suggestion: '建议增加omega-3来源（深海鱼/亚麻籽油）'
+        };
+    }
+
+    const ratio = omega6 / omega3;
+
+    if (ratio >= 4 && ratio <= 6) {
+        return {
+            className: 'ratio-good',
+            text: `1:${ratio.toFixed(1)}`,
+            suggestion: '✓ 比例理想'
+        };
+    } else if (ratio > 6) {
+        return {
+            className: 'ratio-warning',
+            text: `1:${ratio.toFixed(1)}`,
+            suggestion: '⚠️ omega-6偏高，减少植物油，增加深海鱼'
+        };
+    } else {
+        return {
+            className: 'ratio-good',
+            text: `1:${ratio.toFixed(1)}`,
+            suggestion: '✓ omega-3充足，注意总脂肪摄入'
+        };
+    }
+}
+
+/**
+ * 渲染食物数据库网格
+ */
+function renderFoodDbGrid() {
+    const query = document.getElementById('foodSearchInput').value;
+    let foods = searchFood(query);
+
+    if (currentFoodCategory) {
+        foods = foods.filter(f => f.category === currentFoodCategory);
+    }
+
+    // 更新统计
+    document.getElementById('foodTotalCount').textContent = FOOD_DATABASE.length;
+    document.getElementById('foodCategoryCount').textContent = getCategories().length;
+
+    const grid = document.getElementById('foodDbGrid');
+
+    if (foods.length === 0) {
+        grid.innerHTML = '<div class="food-empty">没有找到匹配的食物</div>';
+        return;
+    }
+
+    grid.innerHTML = foods.map(food => {
+        const omega3Val = food.per100g.omega3 || 0;
+        const omega6Val = food.per100g.omega6 || 0;
+        const ratioInfo = getOmegaRatioInfo(omega3Val, omega6Val);
+
+        // 判断高亮类型
+        const isEgg = food.category === '蛋类';
+        const isOil = food.category === '油脂类';
+        const isHighOmega3 = omega3Val > 500;
+
+        let cardClass = 'food-card';
+        if (isEgg) cardClass += ' egg-highlight';
+        if (isOil) cardClass += ' oil-highlight';
+        if (isHighOmega3 && !isOil) cardClass += ' high-omega3';
+
+        return `
+            <div class="${cardClass}" id="food-${food.id}">
+                <div class="food-card-header">
+                    <span class="food-card-name">${food.name}</span>
+                    <span class="food-card-category">${food.category}</span>
+                </div>
+                <div class="food-card-aliases">别名：${food.aliases ? food.aliases.join(' / ') : '无'}</div>
+
+                <div class="food-card-nutrition">
+                    <div class="nutri-box">
+                        <div class="nutri-box-value">${food.per100g.calories}</div>
+                        <div class="nutri-box-label">热量(kcal)</div>
+                    </div>
+                    <div class="nutri-box">
+                        <div class="nutri-box-value">${food.per100g.protein}</div>
+                        <div class="nutri-box-label">蛋白质(g)</div>
+                    </div>
+                    <div class="nutri-box">
+                        <div class="nutri-box-value">${food.per100g.fat}</div>
+                        <div class="nutri-box-label">脂类(g)</div>
+                    </div>
+                    <div class="nutri-box">
+                        <div class="nutri-box-value">${food.per100g.carbs}</div>
+                        <div class="nutri-box-label">碳水(g)</div>
+                    </div>
+                    <div class="nutri-box">
+                        <div class="nutri-box-value">${food.per100g.fiber}</div>
+                        <div class="nutri-box-label">纤维(g)</div>
+                    </div>
+                    <div class="nutri-box">
+                        <div class="nutri-box-value">${food.per100g.cholesterol}</div>
+                        <div class="nutri-box-label">胆固醇(mg)</div>
+                    </div>
+                    <div class="nutri-box omega3">
+                        <div class="nutri-box-value">${omega3Val}</div>
+                        <div class="nutri-box-label">omega3(mg)</div>
+                    </div>
+                    <div class="nutri-box omega6">
+                        <div class="nutri-box-value">${omega6Val}</div>
+                        <div class="nutri-box-label">omega6(mg)</div>
+                    </div>
+                    ${renderMVBox(food, 'minerals')}
+                    ${renderMVBox(food, 'vitamins')}
+                </div>
+
+                <div class="food-card-fat-ratio">
+                    <div class="fat-ratio-title">🥦 脂肪酸比例（建议 1:4 ~ 1:6）</div>
+                    <div class="fat-ratio-row">
+                        <span class="fat-ratio-label">omega6 : omega3</span>
+                        <span class="fat-ratio-value ${ratioInfo.className}">${ratioInfo.text}</span>
+                    </div>
+                    <div class="fat-ratio-suggestion">${ratioInfo.suggestion}</div>
+                </div>
+
+                <div class="food-card-calc">
+                    <label>计算摄入：</label>
+                    <input type="number" value="100" min="1" max="2000"
+                           onchange="updateFoodCalc(this, ${food.id})">
+                    <span>克</span>
+                    <span class="calc-result" id="food-calc-${food.id}">—</span>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    // 初始化计算结果
+    document.querySelectorAll('.food-card-calc input').forEach(input => {
+        const foodId = parseInt(input.closest('.food-card').id.replace('food-', ''));
+        updateFoodCalc(input, foodId);
+    });
+}
+
+/**
+ * 更新食物计算结果
+ */
+function updateFoodCalc(input, foodId) {
+    const food = getFoodById(foodId);
+    if (!food) return;
+
+    const grams = parseInt(input.value) || 100;
+    const factor = grams / 100;
+
+    const cal = Math.round(food.per100g.calories * factor);
+    const pro = (food.per100g.protein * factor).toFixed(1);
+    const fat = (food.per100g.fat * factor).toFixed(1);
+    const carbs = (food.per100g.carbs * factor).toFixed(1);
+    const o3 = Math.round((food.per100g.omega3 || 0) * factor);
+    const o6 = Math.round((food.per100g.omega6 || 0) * factor);
+
+    const resultEl = document.getElementById(`food-calc-${foodId}`);
+    if (resultEl) {
+        resultEl.textContent = `${cal}kcal | 蛋白${pro}g | 脂类${fat}g | o3:${o3}mg | o6:${o6}mg`;
+    }
+}
+
+/**
+ * 生成矿物质或维生素 nutri-box 方块（含hover弹出popup）
+ * @param {Object} food - 食物对象
+ * @param {string} type - 'minerals' | 'vitamins'
+ */
+function renderMVBox(food, type) {
+    const mv = food.per100g;
+    const isMinerals = type === 'minerals';
+
+    const unitMap = {
+        ca: 'mg', fe: 'mg', zn: 'mg', se: 'μg',
+        k: 'mg', na: 'mg', p: 'mg', mag: 'mg', cu: 'mg', mn: 'mg', iodine: 'μg',
+        va: 'μg', vb1: 'mg', vb2: 'mg', vc: 'mg', vd: 'μg', ve: 'mg',
+        vb6: 'mg', vb12: 'μg', folate: 'μg', vk: 'μg', niacin: 'mg',
+        pantothenic: 'mg', biotin: 'μg'
+    };
+
+    const mineralLabels = { ca: '钙', fe: '铁', zn: '锌', se: '硒', k: '钾', na: '钠', p: '磷', mag: '镁', cu: '铜', mn: '锰', iodine: '碘' };
+    const vitaminLabels = { va: '维A', vb1: 'B1', vb2: 'B2', vc: '维C', vd: '维D', ve: '维E', vb6: 'B6', vb12: 'B12', folate: '叶酸', vk: '维K', niacin: '烟酸', pantothenic: '泛酸', biotin: '生物素' };
+
+    const mineralFields = ['ca', 'fe', 'zn', 'se', 'k', 'na', 'p', 'mag', 'cu', 'mn', 'iodine'];
+    const vitaminFields = ['va', 'vb1', 'vb2', 'vc', 'vd', 've', 'vb6', 'vb12', 'folate', 'vk', 'niacin', 'pantothenic', 'biotin'];
+
+    const fields = isMinerals ? mineralFields : vitaminFields;
+    const labels = isMinerals ? mineralLabels : vitaminLabels;
+    const dataObj = mv[type];
+
+    // 统计有数据的字段数
+    const hasCount = dataObj ? fields.filter(k => dataObj[k] !== null && dataObj[k] !== undefined).length : 0;
+
+    // 弹层内容
+    const itemsHtml = fields.map(key => {
+        const val = dataObj?.[key];
+        const display = val !== null && val !== undefined
+            ? `<span class="mv-value">${val}${unitMap[key] || ''}</span>`
+            : `<span class="mv-null">—</span>`;
+        return `<div class="food-card-mv-item"><span class="mv-label">${labels[key]}</span>${display}</div>`;
+    }).join('');
+
+    return `
+        <div class="nutri-box nutri-box-mv ${type}" tabindex="0">
+            <div class="nutri-box-value">${isMinerals ? '🪨' : '💊'}</div>
+            <div class="nutri-box-label">${isMinerals ? '矿物质' : '维生素'}<span class="mv-count">${hasCount}</span></div>
+            <div class="nutri-box-mv-popup">
+                <div class="mv-popup-title">${isMinerals ? '矿物质（每100g）' : '维生素（每100g）'}</div>
+                <div class="mv-popup-grid">
+                    ${itemsHtml}
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// ============================================
+// 主计算函数
+// ============================================
+
+function calculate() {
+    const formData = getFormData();
+
+    // 基础验证
+    if (!formData.height || !formData.weight || !formData.age) {
+        showToast('请填写完整的身高、体重、年龄信息', 'error');
+        return;
+    }
+
+    // 保存基本信息到当前用户数据
+    users[currentUser] = {
+        ...users[currentUser],
+        ...formData,
+        xiaResult: calculateTDEE_XiaMeng(
+            formData.height,
+            formData.weight,
+            formData.age,
+            formData.activity
+        )
+    };
+    // 跳转到问卷调查
+    showSurvey();
+}
+
+// ============================================
+// 事件绑定
+// ============================================
+
+document.addEventListener('DOMContentLoaded', () => {
+    // 计算按钮
+    document.getElementById('calculateBtn').addEventListener('click', calculate);
+
+    // 重置按钮
+    document.getElementById('resetBtn').addEventListener('click', () => {
+        hideResults();
+        users[currentUser] = {};
+        window.history.replaceState({}, '', window.location.pathname);
+    });
+
+    // 分享按钮
+    document.getElementById('shareBtn').addEventListener('click', showShareModal);
+
+    // 用户切换
+    document.querySelectorAll('.tab-btn[data-user]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            switchUser(parseInt(btn.dataset.user));
+        });
+    });
+
+    // 添加用户
+    document.getElementById('addUserBtn')?.addEventListener('click', addUser);
+
+    // 从URL加载
+    loadFromURL();
+});

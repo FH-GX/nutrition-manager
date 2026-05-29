@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>食物营养数据库预览</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f5f5;
+      padding: 20px;
+    }
+    .container { max-width: 1300px; margin: 0 auto; }
+    h1 {
+      text-align: center;
+      color: #333;
+      margin-bottom: 10px;
+    }
+    .subtitle {
+      text-align: center;
+      color: #666;
+      margin-bottom: 30px;
+      font-size: 14px;
+    }
+    .stats {
+      display: flex;
+      justify-content: center;
+      gap: 30px;
+      margin-bottom: 30px;
+    }
+    .stat {
+      background: white;
+      padding: 15px 25px;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      text-align: center;
+    }
+    .stat-num {
+      font-size: 28px;
+      font-weight: bold;
+      color: #4CAF50;
+    }
+    .stat-label {
+      color: #666;
+      font-size: 13px;
+      margin-top: 5px;
+    }
+    .search-box {
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+    }
+    .search-box input {
+      width: 100%;
+      padding: 12px 15px;
+      font-size: 16px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      outline: none;
+    }
+    .search-box input:focus {
+      border-color: #4CAF50;
+    }
+    .filter-row {
+      display: flex;
+      gap: 10px;
+      margin-top: 15px;
+      flex-wrap: wrap;
+    }
+    .filter-btn {
+      padding: 6px 14px;
+      border: 1px solid #ddd;
+      background: white;
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.2s;
+    }
+    .filter-btn:hover, .filter-btn.active {
+      background: #4CAF50;
+      color: white;
+      border-color: #4CAF50;
+    }
+    .food-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+      gap: 15px;
+    }
+    .food-card {
+      background: white;
+      padding: 15px;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+    }
+    .food-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .food-name {
+      font-size: 16px;
+      font-weight: 600;
+      color: #333;
+    }
+    .food-category {
+      font-size: 12px;
+      padding: 3px 10px;
+      background: #e8f5e9;
+      color: #4CAF50;
+      border-radius: 10px;
+    }
+    .food-aliases {
+      font-size: 12px;
+      color: #999;
+      margin-bottom: 10px;
+    }
+    .nutrition-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+    }
+    .nutri-item {
+      text-align: center;
+      padding: 6px 4px;
+      background: #f9f9f9;
+      border-radius: 6px;
+    }
+    .nutri-value {
+      font-size: 14px;
+      font-weight: 600;
+      color: #333;
+    }
+    .nutri-label {
+      font-size: 10px;
+      color: #888;
+      margin-top: 2px;
+    }
+    .unit {
+      font-size: 10px;
+      color: #999;
+    }
+    /* 脂肪酸区块 */
+    .fat-section {
+      margin-top: 10px;
+      padding: 10px;
+      background: linear-gradient(135deg, #e3f2fd 0%, #e8f5e9 100%);
+      border-radius: 8px;
+    }
+    .fat-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: #1976D2;
+      margin-bottom: 8px;
+    }
+    .fat-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .fat-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 4px 8px;
+      background: white;
+      border-radius: 4px;
+      font-size: 12px;
+    }
+    .fat-label {
+      color: #666;
+    }
+    .fat-value {
+      font-weight: 600;
+      color: #333;
+    }
+    .omega-high {
+      color: #e91e63;
+      font-weight: 600;
+    }
+    .ratio-section {
+      margin-top: 8px;
+      padding: 8px;
+      background: white;
+      border-radius: 4px;
+    }
+    .ratio-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+    }
+    .ratio-label {
+      color: #666;
+    }
+    .ratio-value {
+      font-weight: 600;
+    }
+    .ratio-good { color: #4CAF50; }
+    .ratio-warning { color: #FF9800; }
+    .ratio-suggestion {
+      font-size: 11px;
+      color: #888;
+      margin-top: 4px;
+      font-style: italic;
+    }
+    .calc-section {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid #eee;
+    }
+    .calc-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .calc-row label {
+      font-size: 13px;
+      color: #666;
+      white-space: nowrap;
+    }
+    .calc-row input {
+      width: 80px;
+      padding: 6px 10px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      font-size: 14px;
+      text-align: center;
+    }
+    .calc-result {
+      margin-left: auto;
+      font-size: 12px;
+      color: #4CAF50;
+      font-weight: 500;
+    }
+    .empty-state {
+      text-align: center;
+      padding: 60px;
+      color: #999;
+    }
+    .egg-highlight {
+      background: linear-gradient(135deg, #fff9e6 0%, #fff3cd 100%);
+      border: 2px solid #ffc107;
+    }
+    .oil-highlight {
+      background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
+      border: 2px solid #ff9800;
+    }
+    /* omega3含量高的食物高亮 */
+    .high-omega3 {
+      border-left: 3px solid #e91e63;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🥗 食物营养数据库预览</h1>
+    <p class="subtitle">数据来源：《中国食物成分表 标准版 第六版》杨月欣 主编 | omega3与omega6建议比例 1:4 ~ 1:6</p>
+    
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-num" id="totalCount">0</div>
+        <div class="stat-label">种食物</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num" id="categoryCount">0</div>
+        <div class="stat-label">个分类</div>
+      </div>
+      <div class="stat" style="background: linear-gradient(135deg, #e3f2fd, #f3e5f5);">
+        <div class="stat-num" style="color: #e91e63;">omega3</div>
+        <div class="stat-label">深海鱼/亚麻籽油最高</div>
+      </div>
+      <div class="stat" style="background: linear-gradient(135deg, #fff3e0, #fce4ec);">
+        <div class="stat-num" style="color: #ff9800;">omega6</div>
+        <div class="stat-label">坚果/植物油较高</div>
+      </div>
+    </div>
+    
+    <div class="search-box">
+      <input type="text" id="searchInput" placeholder="🔍 搜索食物名称或别名..." oninput="renderFoods()">
+      <div class="filter-row" id="filterRow"></div>
+    </div>
+    
+    <div class="food-grid" id="foodGrid"></div>
+  </div>
+
+  <script src="foods.js"></script>
+  <script>
+    let currentCategory = null;
+    
+    // 初始化
+    document.getElementById('totalCount').textContent = FOOD_DATABASE.length;
+    document.getElementById('categoryCount').textContent = getCategories().length;
+    
+    // 渲染分类筛选按钮
+    const filterRow = document.getElementById('filterRow');
+    filterRow.innerHTML = '<button class="filter-btn active" onclick="setCategory(null)">全部</button>';
+    getCategories().forEach(cat => {
+      filterRow.innerHTML += `<button class="filter-btn" onclick="setCategory('${cat}')">${cat}</button>`;
+    });
+    
+    function setCategory(cat) {
+      currentCategory = cat;
+      document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.textContent === (cat || '全部'));
+      });
+      renderFoods();
+    }
+    
+    function getRatioClass(ratio) {
+      if (ratio === null) return 'ratio-warning';
+      if (ratio >= 4 && ratio <= 6) return 'ratio-good';
+      if (ratio > 6) return 'ratio-warning';
+      return 'ratio-warning';
+    }
+    
+    function getRatioText(omega3, omega6) {
+      if (!omega3 || !omega6) return '—';
+      const ratio = omega6 / omega3;
+      return `1:${ratio.toFixed(1)}`;
+    }
+    
+    function getRatioSuggestion(omega3, omega6) {
+      if (!omega3 || !omega6) return '建议增加omega-3来源';
+      const ratio = omega6 / omega3;
+      if (ratio > 6) return '⚠️ omega6偏高，减少植物油，增加深海鱼';
+      if (ratio < 4) return '✓ 比例良好，注意总脂肪摄入';
+      return '✓ 比例理想';
+    }
+    
+    function renderFoods() {
+      const query = document.getElementById('searchInput').value;
+      let foods = searchFood(query);
+      if (currentCategory) {
+        foods = foods.filter(f => f.category === currentCategory);
+      }
+      
+      const grid = document.getElementById('foodGrid');
+      if (foods.length === 0) {
+        grid.innerHTML = '<div class="empty-state">没有找到匹配的食物</div>';
+        return;
+      }
+      
+      grid.innerHTML = foods.map(food => {
+        const isEgg = food.category === '蛋类';
+        const isOil = food.category === '油脂类';
+        const isHighOmega3 = food.per100g.omega3 > 500;
+        
+        let cardClass = 'food-card';
+        if (isEgg) cardClass += ' egg-highlight';
+        if (isOil) cardClass += ' oil-highlight';
+        if (isHighOmega3 && !isOil) cardClass += ' high-omega3';
+        
+        const omega3Val = food.per100g.omega3 || 0;
+        const omega6Val = food.per100g.omega6 || 0;
+        const ratioClass = getRatioClass(omega3Val > 0 && omega6Val > 0 ? omega6Val / omega3Val : null);
+        const ratioText = getRatioText(omega3Val, omega6Val);
+        const ratioSuggestion = getRatioSuggestion(omega3Val, omega6Val);
+        
+        return `
+          <div class="${cardClass}">
+            <div class="food-header">
+              <span class="food-name">${food.name}</span>
+              <span class="food-category">${food.category}</span>
+            </div>
+            <div class="food-aliases">别名：${food.aliases ? food.aliases.join(' / ') : '无'}</div>
+            <div class="nutrition-grid">
+              <div class="nutri-item">
+                <div class="nutri-value">${food.per100g.calories}</div>
+                <div class="nutri-label">热量</div>
+                <div class="unit">kcal</div>
+              </div>
+              <div class="nutri-item">
+                <div class="nutri-value">${food.per100g.protein}</div>
+                <div class="nutri-label">蛋白质</div>
+                <div class="unit">g</div>
+              </div>
+              <div class="nutri-item">
+                <div class="nutri-value">${food.per100g.fat}</div>
+                <div class="nutri-label">脂类</div>
+                <div class="unit">g</div>
+              </div>
+              <div class="nutri-item">
+                <div class="nutri-value">${food.per100g.carbs}</div>
+                <div class="nutri-label">碳水</div>
+                <div class="unit">g</div>
+              </div>
+              <div class="nutri-item">
+                <div class="nutri-value">${food.per100g.fiber}</div>
+                <div class="nutri-label">膳食纤维</div>
+                <div class="unit">g</div>
+              </div>
+              <div class="nutri-item">
+                <div class="nutri-value">${food.per100g.cholesterol}</div>
+                <div class="nutri-label">胆固醇</div>
+                <div class="unit">mg</div>
+              </div>
+              <div class="nutri-item" style="background: #fce4ec;">
+                <div class="nutri-value" style="color: #e91e63;">${omega3Val}</div>
+                <div class="nutri-label">omega3</div>
+                <div class="unit">mg</div>
+              </div>
+              <div class="nutri-item" style="background: #fff3e0;">
+                <div class="nutri-value" style="color: #ff9800;">${omega6Val}</div>
+                <div class="nutri-label">omega6</div>
+                <div class="unit">mg</div>
+              </div>
+            </div>
+            
+            <!-- 脂肪酸详情 -->
+            <div class="fat-section">
+              <div class="fat-title">🥦 脂肪酸比例分析</div>
+              <div class="ratio-section">
+                <div class="ratio-row">
+                  <span class="ratio-label">omega6 : omega3</span>
+                  <span class="ratio-value ${ratioClass}">${ratioText}</span>
+                </div>
+                <div class="ratio-suggestion">${ratioSuggestion}</div>
+              </div>
+            </div>
+            
+            <div class="calc-section">
+              <div class="calc-row">
+                <label>计算摄入：</label>
+                <input type="number" value="100" min="1" max="1000" 
+                       onchange="updateCalc(this, '${food.name}')">
+                <span>克</span>
+                <div class="calc-result" id="result-${food.id}">—</div>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+      
+      // 初始化计算结果
+      document.querySelectorAll('.calc-row input').forEach(input => {
+        updateCalc(input);
+      });
+    }
+    
+    function updateCalc(input, foodName) {
+      const grams = parseInt(input.value) || 100;
+      const card = input.closest('.food-card');
+      const foodId = parseInt(card.querySelector('.calc-result').id.replace('result-', ''));
+      const food = getFoodById(foodId);
+      if (!food) return;
+      
+      const factor = grams / 100;
+      const cal = Math.round(food.per100g.calories * factor);
+      const pro = (food.per100g.protein * factor).toFixed(1);
+      const fat = (food.per100g.fat * factor).toFixed(1);
+      const o3 = Math.round(food.per100g.omega3 * factor);
+      const o6 = Math.round(food.per100g.omega6 * factor);
+      
+      const resultEl = document.getElementById('result-' + food.id);
+      if (resultEl) {
+        resultEl.textContent = `${cal}kcal | 蛋白${pro}g | 脂类${fat}g | o3:${o3}mg | o6:${o6}mg`;
+      }
+    }
+    
+    renderFoods();
+  </script>
+</body>
+</html>

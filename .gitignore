@@ -1,0 +1,24 @@
+# Node
+node_modules/
+npm-debug.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Temp
+*.tmp
+*.log
+
+# Test / preview pages (not for production)
+preview_result.html
+test-calendar-data.html
+test-checkin.html
+test-user-level.html
+
+# Embedded git repos
+data/cfcd_temp

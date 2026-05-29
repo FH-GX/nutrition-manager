@@ -1,0 +1,739 @@
+/* ============================================
+   饮食调查问卷样式 - 今天，吃了吗？
+   ============================================ */
+
+/* 调查说明 */
+.survey-desc {
+    font-size: 0.9rem;
+    color: var(--text-light);
+    margin-bottom: 20px;
+    padding: 12px 16px;
+    background: #f0f9f4;
+    border-radius: 8px;
+    border-left: 4px solid var(--primary);
+}
+
+/* 表格提示 */
+.table-hint {
+    font-size: 0.85rem;
+    color: var(--text-light);
+    margin-bottom: 10px;
+}
+
+.table-tip {
+    font-size: 0.8rem;
+    color: var(--text-light);
+    margin: 12px 0 20px;
+    padding: 8px 12px;
+    background: #fff8e1;
+    border-radius: 6px;
+    border-left: 3px solid #f5a623;
+}
+
+/* 顶部提示 */
+.warning-box {
+    margin: 12px 0 20px;
+    padding: 8px 12px;
+    background: #fff8e1;
+    border-radius: 6px;
+    border-left: 3px solid #f5a623;
+}
+
+/* Header 样式 */
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.header-user {
+    color: var(--text-light);
+    font-size: 0.9rem;
+}
+
+.header-logout-btn {
+    padding: 6px 14px;
+    border: 1px solid var(--danger);
+    background: white;
+    color: var(--danger);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: all 0.2s;
+}
+
+.header-logout-btn:hover {
+    background: var(--danger);
+    color: white;
+}
+
+/* 填写说明 */
+.survey-instructions {
+    background: #f8fbff;
+    border: 1.5px solid #d0e3f7;
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin-bottom: 20px;
+}
+
+.survey-instructions h4 {
+    font-size: 0.9rem;
+    color: #1565c0;
+    margin-bottom: 10px;
+}
+
+.survey-instructions ol {
+    padding-left: 20px;
+    margin: 0;
+}
+
+.survey-instructions li {
+    font-size: 0.82rem;
+    color: #555;
+    line-height: 1.6;
+    margin-bottom: 6px;
+}
+
+.survey-instructions li:last-child {
+    margin-bottom: 0;
+}
+
+/* 调查表格 */
+.survey-table-wrap {
+    overflow-x: auto;
+    margin-bottom: 16px;
+}
+
+.survey-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+    min-width: 480px;
+}
+
+.survey-table thead th {
+    background: var(--primary);
+    color: white;
+    padding: 10px 8px;
+    text-align: center;
+    font-weight: 600;
+    font-size: 0.8rem;
+}
+
+.survey-table thead th:first-child {
+    border-radius: 8px 0 0 0;
+}
+
+.survey-table thead th:last-child {
+    border-radius: 0 8px 0 0;
+}
+
+.col-food { min-width: 160px; }
+.col-eat { min-width: 80px; white-space: nowrap; }
+.col-freq { min-width: 140px; white-space: nowrap; }
+.col-amount { min-width: 130px; white-space: nowrap; }
+
+/* 分组标题行 */
+.survey-table .group-header {
+    background: var(--bg);
+    font-weight: bold;
+    color: var(--primary-dark);
+}
+
+.survey-table .group-header td {
+    padding: 8px 12px;
+    font-size: 0.85rem;
+}
+
+.survey-table td {
+    padding: 8px 6px;
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+}
+
+.survey-table td:first-child {
+    text-align: left;
+    padding-left: 12px;
+    font-size: 0.85rem;
+}
+
+.survey-table .food-icon {
+    margin-right: 4px;
+}
+
+/* 是否食用 - 开关（横排，禁止换行）*/
+.eat-toggle {
+    display: flex;
+    gap: 4px;
+    justify-content: center;
+    flex-direction: row;
+    flex-wrap: nowrap;
+}
+
+.eat-btn {
+    padding: 4px 10px;
+    border: 1.5px solid var(--border);
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    background: white;
+    transition: all 0.2s;
+    color: var(--text-light);
+    white-space: nowrap;
+}
+
+.eat-btn:hover {
+    border-color: var(--primary-light);
+}
+
+.eat-btn.active-yes {
+    background: var(--success);
+    color: white;
+    border-color: var(--success);
+}
+
+.eat-btn.active-no {
+    background: var(--danger);
+    color: white;
+    border-color: var(--danger);
+}
+
+/* 频率输入（保持一行） */
+.freq-input-group {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    justify-content: center;
+    flex-direction: row;
+    flex-wrap: nowrap;
+}
+
+.freq-input-group input {
+    width: 58px;
+    padding: 4px 4px;
+    border: 1.5px solid var(--border);
+    border-radius: 5px;
+    text-align: center;
+    font-size: 0.85rem;
+    transition: border-color 0.2s;
+}
+
+.freq-input-group input:focus {
+    outline: none;
+    border-color: var(--primary);
+}
+
+.freq-input-group select {
+    padding: 4px 4px;
+    border: 1.5px solid var(--border);
+    border-radius: 5px;
+    font-size: 0.8rem;
+    transition: border-color 0.2s;
+    background: white;
+}
+
+.freq-input-group select:focus {
+    outline: none;
+    border-color: var(--primary);
+}
+
+.freq-input-group .freq-label {
+    font-size: 0.75rem;
+    color: var(--text-light);
+    white-space: nowrap;
+}
+
+.amount-input {
+    width: 65px !important;
+}
+
+.amount-input:disabled {
+    background: #f5f5f5;
+    color: #ccc;
+}
+
+/* 其他饮食习惯 */
+.other-habits {
+    margin-bottom: 20px;
+}
+
+.habit-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.habit-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    background: white;
+    transition: all 0.2s;
+}
+
+.habit-item:hover {
+    border-color: var(--primary-light);
+}
+
+.habit-item .habit-name {
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.habit-toggle {
+    display: flex;
+    gap: 4px;
+}
+
+.habit-toggle .eat-btn {
+    font-size: 0.75rem;
+    padding: 3px 10px;
+}
+
+/* 口味程度 */
+.taste-level-section {
+    margin-top: 16px;
+    padding: 16px;
+    background: var(--bg);
+    border-radius: 10px;
+}
+
+.taste-level-section label {
+    font-size: 0.9rem;
+    font-weight: 600;
+    display: block;
+    margin-bottom: 10px;
+    color: var(--text);
+}
+
+.taste-options {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.taste-option {
+    padding: 8px 16px;
+    border: 2px solid var(--border);
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    background: white;
+    transition: all 0.2s;
+    color: var(--text-light);
+}
+
+.taste-option:hover {
+    border-color: var(--primary-light);
+    background: #f0f9f4;
+}
+
+.taste-option.active {
+    border-color: var(--primary);
+    background: var(--primary);
+    color: white;
+}
+
+/* 导航标签 */
+.nav-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+.nav-btn {
+    padding: 10px 20px;
+    border: 2px solid var(--primary);
+    background: white;
+    color: var(--primary);
+    border-radius: 10px 10px 0 0;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: all 0.2s;
+    flex: 1;
+    text-align: center;
+}
+
+.nav-btn:hover {
+    background: var(--bg);
+}
+
+.nav-btn.active {
+    background: var(--primary);
+    color: white;
+    font-weight: bold;
+}
+
+.nav-btn.nav-btn-logout {
+    border-color: var(--danger);
+    color: var(--danger);
+    margin-left: auto;
+}
+
+.nav-btn.nav-btn-logout:hover {
+    background: var(--danger);
+    color: white;
+}
+
+/* 结果页用户信息 */
+.result-user-info {
+    text-align: right;
+    margin-bottom: 16px;
+    font-size: 0.9rem;
+    color: var(--text-light);
+}
+
+/* 公式说明（仅后台用） */
+.formula-block {
+    background: var(--bg);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin: 12px 0;
+}
+
+.formula-block code {
+    display: block;
+    padding: 6px 0;
+    font-size: 0.9rem;
+    color: var(--primary-dark);
+    font-family: 'Courier New', monospace;
+}
+
+.formula-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0;
+    font-size: 0.85rem;
+}
+
+.formula-table th,
+.formula-table td {
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    text-align: center;
+}
+
+.formula-table th {
+    background: var(--primary);
+    color: white;
+}
+
+.formula-table tr:nth-child(even) {
+    background: var(--bg);
+}
+
+/* ============================================
+   用户注册/登录样式
+   ============================================ */
+
+.auth-card {
+    max-width: 440px;
+    margin: 0 auto;
+}
+
+.auth-desc {
+    font-size: 0.9rem;
+    color: var(--text-light);
+    margin-bottom: 20px;
+}
+
+.auth-empty {
+    text-align: center;
+    padding: 20px;
+    color: var(--text-light);
+    font-size: 0.85rem;
+}
+
+.auth-switch-btn {
+    padding: 6px 14px;
+    border: 1.5px solid var(--primary);
+    background: white;
+    color: var(--primary);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    margin: 4px;
+    transition: all 0.2s;
+}
+
+.auth-switch-btn:hover {
+    background: var(--primary);
+    color: white;
+}
+
+.auth-label {
+    font-size: 0.85rem;
+    color: var(--text-light);
+    margin-bottom: 8px;
+}
+
+.auth-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 20px;
+}
+
+.auth-tab-btn {
+    padding: 10px 20px;
+    border: 2px solid var(--primary);
+    background: white;
+    color: var(--primary);
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+    flex: 1;
+    text-align: center;
+}
+
+.auth-tab-btn:hover {
+    background: var(--bg);
+}
+
+.auth-tab-btn.active {
+    background: var(--primary);
+    color: white;
+    font-weight: bold;
+}
+
+.auth-tab-btn.logout-btn {
+    border-color: var(--danger);
+    color: var(--danger);
+}
+
+.auth-tab-btn.logout-btn:hover {
+    background: var(--danger);
+    color: white;
+}
+
+.auth-form-group {
+    margin-bottom: 12px;
+}
+
+.auth-input {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    font-size: 1rem;
+    transition: border-color 0.2s;
+    background: #fafafa;
+    box-sizing: border-box;
+}
+
+.auth-input:focus {
+    outline: none;
+    border-color: var(--primary);
+    background: white;
+}
+
+.auth-error {
+    color: var(--danger);
+    font-size: 0.85rem;
+    padding: 10px 14px;
+    background: #fde8e8;
+    border-radius: 6px;
+    margin-top: 14px;
+}
+
+/* 调查问卷头部 */
+.survey-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.survey-header h2 {
+    margin-bottom: 0;
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.survey-user-info {
+    font-size: 0.85rem;
+    color: var(--text-light);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.auth-logout-btn {
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    background: white;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.75rem;
+    color: var(--text-light);
+    transition: all 0.2s;
+}
+
+.auth-logout-btn:hover {
+    border-color: var(--danger);
+    color: var(--danger);
+}
+
+/* 其他习惯 - 带频率（输入+选择同行） */
+.habit-item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 12px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    background: white;
+    transition: all 0.2s;
+}
+
+.habit-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+}
+
+.habit-icon {
+    font-size: 1.1rem;
+    flex-shrink: 0;
+}
+
+.habit-name-multi {
+    font-size: 0.85rem;
+    color: var(--text);
+    line-height: 1.3;
+}
+
+.habit-freq {
+    width: 100%;
+}
+
+.habit-freq-select {
+    width: 100%;
+    padding: 6px 10px;
+    border: 1.5px solid var(--border);
+    border-radius: 6px;
+    font-size: 0.85rem;
+    background: white;
+    transition: border-color 0.2s;
+}
+
+.habit-freq-select:focus {
+    outline: none;
+    border-color: var(--primary);
+}
+
+.habit-freq-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    width: 100%;
+    flex-direction: row;
+    flex-wrap: nowrap;
+}
+
+.habit-freq-num {
+    width: 60px;
+    padding: 5px 6px;
+    border: 1.5px solid var(--border);
+    border-radius: 5px;
+    text-align: center;
+    font-size: 0.85rem;
+    background: #fafafa;
+    transition: border-color 0.2s;
+    box-sizing: border-box;
+}
+
+.habit-freq-num:focus {
+    outline: none;
+    border-color: var(--primary);
+    background: white;
+}
+
+.habit-freq-num:disabled {
+    background: #f5f5f5;
+    color: #ccc;
+}
+
+.habit-freq-unit {
+    flex: 1;
+    padding: 5px 8px;
+    border: 1.5px solid var(--border);
+    border-radius: 5px;
+    font-size: 0.85rem;
+    background: white;
+    transition: border-color 0.2s;
+}
+
+.habit-freq-unit:focus {
+    outline: none;
+    border-color: var(--primary);
+}
+
+/* 食物名称单元格 - 长文本 */
+.food-name-cell {
+    font-size: 0.82rem !important;
+    line-height: 1.3;
+    min-width: 160px;
+}
+
+/* 自动登录 */
+.auth-auto-login {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 8px 0 16px;
+    font-size: 0.85rem;
+    color: var(--text-light);
+    cursor: pointer;
+}
+
+.auth-auto-login input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--primary);
+    cursor: pointer;
+}
+
+/* 响应式 */
+@media (max-width: 600px) {
+    .survey-table {
+        font-size: 0.78rem;
+        min-width: 400px;
+    }
+
+    .freq-input-group input {
+        width: 40px;
+        font-size: 0.78rem;
+    }
+
+    .habit-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .nav-tabs {
+        flex-direction: column;
+    }
+
+    .nav-btn {
+        border-radius: 8px;
+    }
+}
