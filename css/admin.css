@@ -588,6 +588,160 @@
 }
 
 /* ============================================
+   用户管理
+   ============================================ */
+
+.admin-users-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+}
+
+.admin-users-toolbar h3 {
+    font-size: 1.05rem;
+    color: var(--text);
+}
+
+.admin-code-section {
+    background: #f8f9fa;
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 16px;
+    overflow: hidden;
+}
+
+.admin-code-header {
+    padding: 10px 16px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text);
+    background: #eef1f5;
+    border-bottom: 1px solid var(--border);
+}
+
+.admin-code-body {
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.9rem;
+    color: var(--text);
+}
+
+.admin-code-input-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.admin-code-input-group input {
+    padding: 8px 10px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    font-size: 1rem;
+    outline: none;
+    transition: border-color 0.2s;
+    background: white;
+}
+
+.admin-code-input-group input:focus {
+    border-color: var(--primary);
+}
+
+.admin-users-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-width: 600px;
+}
+
+.admin-user-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: white;
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 16px;
+    transition: all 0.2s;
+}
+
+.admin-user-card:hover {
+    border-color: var(--primary-light);
+    box-shadow: 0 2px 8px rgba(45,122,79,0.08);
+}
+
+.admin-user-avatar {
+    font-size: 1.8rem;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.admin-user-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.admin-user-name {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.admin-user-pwd {
+    font-size: 0.85rem;
+    color: var(--text-light);
+    margin-top: 2px;
+    word-break: break-all;
+}
+
+.admin-user-level-select {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.admin-user-level-icon {
+    font-size: 1rem;
+    line-height: 1;
+}
+
+.admin-user-level-select select {
+    padding: 4px 8px;
+    border: 1.5px solid var(--border);
+    border-radius: 6px;
+    font-size: 0.8rem;
+    background: white;
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.admin-user-level-select select:focus {
+    border-color: var(--primary);
+}
+
+.admin-btn-sm.admin-btn-danger {
+    background: #fde8e8;
+    color: #c0392b;
+    border: 1px solid #f5c6c6;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.admin-btn-sm.admin-btn-danger:hover {
+    background: #c0392b;
+    color: white;
+}
+
+/* ============================================
    学习模式（家人查看页面）
    ============================================ */
 

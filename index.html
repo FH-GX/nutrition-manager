@@ -48,6 +48,9 @@
                     <div class="auth-form-group">
                         <input type="password" id="regConfirm" placeholder="再次输入密码" class="auth-input">
                     </div>
+                    <div class="auth-form-group">
+                        <input type="text" id="regCode" placeholder="请输入注册验证码" class="auth-input" style="font-family:monospace;letter-spacing:4px;text-align:center;" maxlength="6">
+                    </div>
                     <button class="btn-calculate" id="registerBtn">📝 注册并开始</button>
                 </div>
 
@@ -389,6 +392,7 @@
             <button class="admin-tab-btn" data-tab="display" onclick="switchAdminTab('display')">✅ 扫盲学习台</button>
             <button class="admin-tab-btn" data-tab="formulas" onclick="switchAdminTab('formulas')">🧮 公式说明</button>
             <button class="admin-tab-btn" data-tab="userlevel" onclick="switchAdminTab('userlevel')">⭐ 用户等级</button>
+            <button class="admin-tab-btn" data-tab="users" onclick="switchAdminTab('users')">👥 用户管理</button>
             <button class="admin-tab-btn" onclick="hideAdminPanel()">🔙 返回首页</button>
         </div>
 
@@ -520,6 +524,30 @@
         <!-- 用户等级管理 -->
         <div class="admin-tab-content" id="tab-userlevel">
             <div id="userLevelList"></div>
+        </div>
+
+        <!-- 用户管理 -->
+        <div class="admin-tab-content" id="tab-users">
+            <div class="admin-users-toolbar">
+                <h3>👥 已注册用户</h3>
+                <span style="font-size:0.85rem;color:var(--text-light);" id="userCount"></span>
+            </div>
+
+            <!-- 验证码设置 -->
+            <div class="admin-code-section">
+                <div class="admin-code-header">🔑 注册验证码设置</div>
+                <div class="admin-code-body">
+                    <span>当前验证码：</span>
+                    <div class="admin-code-input-group">
+                        <input type="text" id="adminRegCode" maxlength="6" style="font-family:monospace;letter-spacing:4px;text-align:center;width:120px;font-size:1.1rem;">
+                        <button class="admin-btn admin-btn-primary" onclick="saveRegCode()">💾 保存</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="userListContainer">
+                <div class="admin-empty">加载中...</div>
+            </div>
         </div>
     </div>
 

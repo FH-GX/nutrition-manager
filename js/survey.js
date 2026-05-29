@@ -19,12 +19,17 @@ let surveyState = {
 // ============================================
 
 function initAuth() {
-    // 预置测试账号（免注册）
+    // 预置测试账号（仅首次访问时创建，后续用户手动删除则尊重操作）
     const saved = localStorage.getItem('today_eaten_users');
-    if (!saved || !JSON.parse(saved)['测试']) {
-        const users = saved ? JSON.parse(saved) : {};
+    if (!saved) {
+        const users = {};
         users['测试'] = { password: 'test1234' };
         localStorage.setItem('today_eaten_users', JSON.stringify(users));
+    }
+
+    // 初始化默认注册验证码
+    if (!localStorage.getItem('nutri_register_code')) {
+        localStorage.setItem('nutri_register_code', '0000');
     }
 
     // 更新账号下拉列表
@@ -133,6 +138,20 @@ function registerUser() {
     }
     if (password !== confirm) {
         errorEl.textContent = '两次密码不一致';
+        errorEl.style.display = 'block';
+        return;
+    }
+
+    // 验证注册码
+    const code = document.getElementById('regCode').value.trim();
+    const validCode = localStorage.getItem('nutri_register_code') || '0000';
+    if (!code) {
+        errorEl.textContent = '请输入注册验证码';
+        errorEl.style.display = 'block';
+        return;
+    }
+    if (code !== validCode) {
+        errorEl.textContent = '注册验证码错误，请联系管理员';
         errorEl.style.display = 'block';
         return;
     }

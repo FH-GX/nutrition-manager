@@ -477,6 +477,10 @@ function switchAdminTab(tab) {
     if (tab === 'userlevel') {
         renderUserLevelList();
     }
+    if (tab === 'users') {
+        renderUserManagement();
+        loadRegCodeSetting();
+    }
 }
 
 // ============================================
@@ -552,6 +556,127 @@ function getAccountList() {
         }
     } catch {}
     return [];
+}
+
+// ============================================
+// 用户管理
+// ============================================
+
+/**
+ * 渲染用户管理列表
+ */
+function renderUserManagement() {
+    const container = document.getElementById('userListContainer');
+    if (!container) return;
+
+    const saved = localStorage.getItem('today_eaten_users');
+    const users = saved ? JSON.parse(saved) : {};
+    const names = Object.keys(users);
+
+    const countEl = document.getElementById('userCount');
+    if (countEl) countEl.textContent = `共 ${names.length} 个用户`;
+
+    if (names.length === 0) {
+        container.innerHTML = '<div class="admin-empty">暂无注册用户</div>';
+        return;
+    }
+
+    let html = '<div class="admin-users-grid">';
+    names.forEach((name, idx) => {
+        const user = users[name];
+        const pwd = user && user.password ? user.password : '—';
+        html += `
+            <div class="admin-user-card">
+                <div class="admin-user-avatar">👤</div>
+                <div class="admin-user-info">
+                    <div class="admin-user-name">${escapeHtml(name)}</div>
+                    <div class="admin-user-pwd">🔑 ${escapeHtml(pwd)}</div>`;
+
+        // 前4个用户显示等级选择器（与用户等级系统保持一致）
+        if (idx < 4) {
+            const level = (typeof getUserLevel === 'function') ? getUserLevel(idx) : 'free';
+            const levelInfo = LEVEL_CONFIG.find(l => l.key === level) || LEVEL_CONFIG[0];
+            html += `
+                    <div class="admin-user-level-select">
+                        <span class="admin-user-level-icon">${levelInfo.icon}</span>
+                        <select onchange="changeUserLevelFromMgt(${idx}, this.value)">
+                            ${LEVEL_CONFIG.map(l => `
+                                <option value="${l.key}" ${l.key === level ? 'selected' : ''}>
+                                    ${l.icon} ${l.label}（${l.days < 0 ? '永久' : l.days + '天'}）
+                                </option>
+                            `).join('')}
+                        </select>
+                    </div>`;
+        }
+
+        html += `
+                </div>
+                <button class="admin-btn-sm admin-btn-danger" onclick="deleteUser('${escapeHtml(name)}')">🗑️ 删除</button>
+            </div>
+        `;
+    });
+    html += '</div>';
+
+    container.innerHTML = html;
+}
+
+/**
+ * 从用户管理页面修改用户等级
+ */
+function changeUserLevelFromMgt(userIdx, level) {
+    if (typeof saveUserLevel === 'function') {
+        saveUserLevel(userIdx, level);
+    }
+    showAdminToast(`✅ 已为用户设置等级`, 'success');
+    // 刷新两个相关页面
+    renderUserManagement();
+    renderUserLevelList();
+}
+
+/**
+ * 删除用户
+ */
+function deleteUser(name) {
+    if (!confirm(`⚠️ 确定要删除用户「${name}」吗？\n\n此操作不可恢复！`)) return;
+
+    const saved = localStorage.getItem('today_eaten_users');
+    const users = saved ? JSON.parse(saved) : {};
+
+    if (!users[name]) {
+        showAdminToast('用户不存在', 'error');
+        return;
+    }
+
+    delete users[name];
+    localStorage.setItem('today_eaten_users', JSON.stringify(users));
+
+    showAdminToast(`✅ 已删除用户「${name}」`, 'success');
+    renderUserManagement();
+}
+
+/**
+ * 加载注册验证码设置
+ */
+function loadRegCodeSetting() {
+    const codeInput = document.getElementById('adminRegCode');
+    if (!codeInput) return;
+    const currentCode = localStorage.getItem('nutri_register_code') || '0000';
+    codeInput.value = currentCode;
+}
+
+/**
+ * 保存注册验证码
+ */
+function saveRegCode() {
+    const codeInput = document.getElementById('adminRegCode');
+    if (!codeInput) return;
+    const code = codeInput.value.trim();
+    if (!code) {
+        showAdminToast('请输入验证码', 'error');
+        return;
+    }
+    localStorage.setItem('nutri_register_code', code);
+    showAdminToast(`✅ 注册验证码已更新为「${code}」`, 'success');
 }
 
 // ============================================
