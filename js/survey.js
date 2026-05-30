@@ -84,21 +84,30 @@ function updateAccountDatalist() {
     datalist.innerHTML = '';
 }
 
+/**
+ * 从邮箱提取显示名（@前面的部分）
+ * test@163.com → test
+ */
+function getDisplayName(email) {
+    if (!email || !email.includes('@')) return email || '';
+    return email.split('@')[0];
+}
+
 async function registerUser() {
     const name = document.getElementById('regName').value.trim();
     const password = document.getElementById('regPassword').value.trim();
     const confirm = document.getElementById('regConfirm').value.trim();
     const errorEl = document.getElementById('authError');
 
+    // 校验邮箱格式
     if (!name || !password) {
-        errorEl.textContent = '请输入用户名和密码';
+        errorEl.textContent = '请输入邮箱和密码';
         errorEl.style.display = 'block';
         return;
     }
 
-    // 校验用户名：只能英文和数字
-    if (!/^[a-zA-Z0-9]+$/.test(name)) {
-        errorEl.textContent = '用户名只能使用英文字母和数字';
+    if (!name.includes('@') || name.split('@').length !== 2 || name.split('@')[1].indexOf('.') === -1) {
+        errorEl.textContent = '请输入正确的邮箱格式（如 test@163.com）';
         errorEl.style.display = 'block';
         return;
     }
@@ -163,7 +172,7 @@ async function loginUser() {
     const errorEl = document.getElementById('authError');
 
     if (!name || !password) {
-        errorEl.textContent = '请输入用户名和密码';
+        errorEl.textContent = '请输入邮箱和密码';
         errorEl.style.display = 'block';
         return;
     }
@@ -189,17 +198,18 @@ async function loginUser() {
 
 function doLogin(name) {
     surveyState.currentUser = name;
+    const displayName = getDisplayName(name);
 
     document.getElementById('authSection').style.display = 'none';
     document.getElementById('surveySection').style.display = 'none';
     document.getElementById('foodDbSection').style.display = 'none';
     document.getElementById('calculatorSection').style.display = 'block';
-    document.getElementById('surveyUserName').textContent = name;
+    document.getElementById('surveyUserName').textContent = displayName;
     // 更新右上角用户信息
     const hdrUser = document.getElementById('headerUserName');
     if (hdrUser) {
         const levelInfo = (typeof getUserLevelInfo === 'function') ? getUserLevelInfo(currentUser) : null;
-        hdrUser.textContent = (levelInfo ? levelInfo.icon : '👤') + ' ' + name;
+        hdrUser.textContent = (levelInfo ? levelInfo.icon : '👤') + ' ' + displayName;
     }
     document.getElementById('authError').style.display = 'none';
 

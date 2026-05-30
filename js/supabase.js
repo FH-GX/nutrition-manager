@@ -246,29 +246,26 @@ async function getLowCarbProfiles() {
 
 /**
  * 用户注册
- * 使用 {username}@nutri.app 作为内部邮箱，走Supabase Auth
- * @param {string} username - 用户名（仅英文/数字）
+ * 直接使用用户填写的邮箱走 Supabase Auth
+ * @param {string} email - 用户邮箱（如 test@163.com）
  * @param {string} password - 密码（至少6位）
  * @returns {Promise<{success: boolean, error?: string, user?: object}>}
  */
-async function userSignUp(username, password) {
+async function userSignUp(email, password) {
     try {
         const sb = getSupabase();
         if (!sb) return { success: false, error: 'Supabase未初始化' };
 
-        // 用 username@nutri.app 作为 Supabase Auth 的邮箱
-        const email = `${username}@nutri.app`;
-
         const { data, error } = await sb.auth.signUp({
             email: email,
             password: password,
-            options: { data: { username } }
+            options: { data: { email } }
         });
 
         if (error) {
             // 处理常见错误
             if (error.message.includes('already registered') || error.message.includes('already exists')) {
-                return { success: false, error: '该用户名已存在，请直接登录' };
+                return { success: false, error: '该邮箱已注册，请直接登录' };
             }
             return { success: false, error: error.message };
         }
@@ -277,12 +274,12 @@ async function userSignUp(username, password) {
             return { success: false, error: '注册失败，请稍后重试' };
         }
 
-        // 写入 user_accounts 表
+        // 写入 user_accounts 表（username 字段存邮箱）
         const { error: dbError } = await sb
             .from('user_accounts')
             .insert({
                 auth_id: data.user.id,
-                username: username
+                username: email
             });
 
         if (dbError) {
@@ -298,16 +295,14 @@ async function userSignUp(username, password) {
 
 /**
  * 用户登录
- * @param {string} username - 用户名
+ * @param {string} email - 用户邮箱
  * @param {string} password - 密码
  * @returns {Promise<{success: boolean, error?: string, user?: object}>}
  */
-async function userSignIn(username, password) {
+async function userSignIn(email, password) {
     try {
         const sb = getSupabase();
         if (!sb) return { success: false, error: 'Supabase未初始化' };
-
-        const email = `${username}@nutri.app`;
 
         const { data, error } = await sb.auth.signInWithPassword({
             email: email,
@@ -316,7 +311,7 @@ async function userSignIn(username, password) {
 
         if (error) {
             if (error.message.includes('Invalid login credentials')) {
-                return { success: false, error: '用户名或密码错误' };
+                return { success: false, error: '邮箱或密码错误' };
             }
             return { success: false, error: error.message };
         }
