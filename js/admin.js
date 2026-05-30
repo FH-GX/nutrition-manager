@@ -636,9 +636,24 @@ function changeUserLevelFromMgt(userIdx, level) {
 /**
  * 删除用户
  */
-function deleteUser(name) {
+async function deleteUser(name) {
     if (!confirm(`⚠️ 确定要删除用户「${name}」吗？\n\n此操作不可恢复！`)) return;
 
+    // 1. 删 Supabase user_accounts（级联删除所有关联数据）
+    try {
+        const sb = getSupabase();
+        if (sb) {
+            const { error } = await sb
+                .from('user_accounts')
+                .delete()
+                .eq('username', name);
+            if (error) console.warn('Supabase删除失败:', error.message);
+        }
+    } catch (e) {
+        console.warn('Supabase删除异常:', e.message);
+    }
+
+    // 2. 删 localStorage
     const saved = localStorage.getItem('today_eaten_users');
     const users = saved ? JSON.parse(saved) : {};
 
