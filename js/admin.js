@@ -647,10 +647,18 @@ async function deleteUser(name) {
                 .from('user_accounts')
                 .delete()
                 .eq('username', name);
-            if (error) console.warn('Supabase删除失败:', error.message);
+            if (error) {
+                console.warn('Supabase删除失败:', error.message);
+                showAdminToast('⚠️ Supabase同步删除失败: ' + error.message, 'error');
+            } else {
+                showAdminToast('✅ 已同步删除Supabase数据', 'success');
+            }
+        } else {
+            showAdminToast('⚠️ Supabase未连接，仅删除了本地数据', 'error');
         }
     } catch (e) {
         console.warn('Supabase删除异常:', e.message);
+        showAdminToast('⚠️ Supabase删除异常: ' + e.message, 'error');
     }
 
     // 2. 删 localStorage
