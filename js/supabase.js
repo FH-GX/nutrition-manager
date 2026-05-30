@@ -239,3 +239,144 @@ async function getLowCarbProfiles() {
         return { success: false, error: err.message, data: [] };
     }
 }
+
+// ============================================
+// 普通用户认证（注册/登录）
+// ============================================
+
+/**
+ * 用户注册
+ * 使用 {username}@nutri.app 作为内部邮箱，走Supabase Auth
+ * @param {string} username - 用户名（仅英文/数字）
+ * @param {string} password - 密码（至少6位）
+ * @returns {Promise<{success: boolean, error?: string, user?: object}>}
+ */
+async function userSignUp(username, password) {
+    try {
+        const sb = getSupabase();
+        if (!sb) return { success: false, error: 'Supabase未初始化' };
+
+        // 用 username@nutri.app 作为 Supabase Auth 的邮箱
+        const email = `${username}@nutri.app`;
+
+        const { data, error } = await sb.auth.signUp({
+            email: email,
+            password: password,
+            options: { data: { username } }
+        });
+
+        if (error) {
+            // 处理常见错误
+            if (error.message.includes('already registered') || error.message.includes('already exists')) {
+                return { success: false, error: '该用户名已存在，请直接登录' };
+            }
+            return { success: false, error: error.message };
+        }
+
+        if (!data.user) {
+            return { success: false, error: '注册失败，请稍后重试' };
+        }
+
+        // 写入 user_accounts 表
+        const { error: dbError } = await sb
+            .from('user_accounts')
+            .insert({
+                auth_id: data.user.id,
+                username: username
+            });
+
+        if (dbError) {
+            console.error('写入 user_accounts 失败:', dbError);
+            // 不阻断注册流程，后续可修复
+        }
+
+        return { success: true, user: data.user };
+    } catch (err) {
+        return { success: false, error: err.message || '注册失败' };
+    }
+}
+
+/**
+ * 用户登录
+ * @param {string} username - 用户名
+ * @param {string} password - 密码
+ * @returns {Promise<{success: boolean, error?: string, user?: object}>}
+ */
+async function userSignIn(username, password) {
+    try {
+        const sb = getSupabase();
+        if (!sb) return { success: false, error: 'Supabase未初始化' };
+
+        const email = `${username}@nutri.app`;
+
+        const { data, error } = await sb.auth.signInWithPassword({
+            email: email,
+            password: password,
+        });
+
+        if (error) {
+            if (error.message.includes('Invalid login credentials')) {
+                return { success: false, error: '用户名或密码错误' };
+            }
+            return { success: false, error: error.message };
+        }
+
+        return { success: true, user: data.user };
+    } catch (err) {
+        return { success: false, error: err.message || '登录失败' };
+    }
+}
+
+/**
+ * 用户退出登录
+ */
+async function userSignOut() {
+    try {
+        const sb = getSupabase();
+        if (sb) {
+            await sb.auth.signOut();
+        }
+        return { success: true };
+    } catch (err) {
+        return { success: false, error: err.message };
+    }
+}
+
+/**
+ * 检查当前用户会话
+ */
+async function checkUserSession() {
+    try {
+        const sb = getSupabase();
+        if (!sb) return { loggedIn: false };
+
+        const { data: { session }, error } = await sb.auth.getSession();
+        if (error || !session) {
+            return { loggedIn: false };
+        }
+        return { loggedIn: true, user: session.user };
+    } catch {
+        return { loggedIn: false };
+    }
+}
+
+/**
+ * 根据用户名从 user_accounts 查询用户信息
+ */
+async function getUserAccount(username) {
+    try {
+        const sb = getSupabase();
+        if (!sb) return null;
+        
+        const { data, error } = await sb
+            .from('user_accounts')
+            .select('*')
+            .eq('username', username)
+            .single();
+
+        if (error || !data) return null;
+        return data;
+    } catch {
+        return null;
+    }
+}

@@ -19,14 +19,6 @@ let surveyState = {
 // ============================================
 
 function initAuth() {
-    // 预置测试账号（仅首次访问时创建，后续用户手动删除则尊重操作）
-    const saved = localStorage.getItem('today_eaten_users');
-    if (!saved) {
-        const users = {};
-        users['测试'] = { password: 'test1234' };
-        localStorage.setItem('today_eaten_users', JSON.stringify(users));
-    }
-
     // 初始化默认注册验证码
     if (!localStorage.getItem('nutri_register_code')) {
         localStorage.setItem('nutri_register_code', '0000');
@@ -35,44 +27,27 @@ function initAuth() {
     // 更新账号下拉列表
     updateAccountDatalist();
 
-    const current = localStorage.getItem('today_eaten_current');
     const autoLogin = localStorage.getItem('today_eaten_auto_login') === 'true';
+    const current = localStorage.getItem('today_eaten_current');
 
     const authSection = document.getElementById('authSection');
     const surveySection = document.getElementById('surveySection');
     const calculatorSection = document.getElementById('calculatorSection');
 
-    // 自动登录：如果勾选了自动登录且当前有账号，直接登录
-    if (autoLogin && current && saved) {
-        const users = JSON.parse(saved);
-        if (users[current]) {
-            doLogin(current);
-            return;
-        }
-    }
-
-    if (current && saved) {
-        const users = JSON.parse(saved);
-        if (users[current]) {
-            surveyState.currentUser = current;
-            authSection.style.display = 'none';
-            surveySection.style.display = 'none';
-            calculatorSection.style.display = 'block';
-            document.getElementById('surveyUserName').textContent = current;
-
-            // 显示右上角用户信息
-            const headerRight = document.getElementById('headerRight');
-            const headerUserName = document.getElementById('headerUserName');
-            if (headerRight) headerRight.style.display = 'flex';
-            if (headerUserName) {
-                const levelInfo = (typeof getUserLevelInfo === 'function') ? getUserLevelInfo(currentUser) : null;
-                headerUserName.textContent = (levelInfo ? levelInfo.icon : '👤') + ' ' + current;
+    // 自动登录：检查 Supabase 会话
+    if (autoLogin && current) {
+        (async () => {
+            const session = await checkUserSession();
+            if (session.loggedIn) {
+                doLogin(current);
+            } else {
+                // 会话过期，显示登录页
+                authSection.style.display = 'block';
+                surveySection.style.display = 'none';
+                calculatorSection.style.display = 'none';
             }
-
-            updateNavActive('calculator');
-            initSurvey();
-            return;
-        }
+        })();
+        return;
     }
 
     authSection.style.display = 'block';
@@ -105,22 +80,11 @@ function updateUserList() {
 function updateAccountDatalist() {
     const datalist = document.getElementById('userAccountList');
     if (!datalist) return;
-
-    const saved = localStorage.getItem('today_eaten_users');
-    if (!saved) {
-        datalist.innerHTML = '';
-        return;
-    }
-
-    const users = JSON.parse(saved);
-    const names = Object.keys(users);
-
-    datalist.innerHTML = names.map(name =>
-        `<option value="${name}">`
-    ).join('');
+    // 账号列表已切换至 Supabase Auth，不再从 localStorage 读取
+    datalist.innerHTML = '';
 }
 
-function registerUser() {
+async function registerUser() {
     const name = document.getElementById('regName').value.trim();
     const password = document.getElementById('regPassword').value.trim();
     const confirm = document.getElementById('regConfirm').value.trim();
@@ -131,11 +95,21 @@ function registerUser() {
         errorEl.style.display = 'block';
         return;
     }
-    if (password.length < 4) {
-        errorEl.textContent = '密码至少4位';
+
+    // 校验用户名：只能英文和数字
+    if (!/^[a-zA-Z0-9]+$/.test(name)) {
+        errorEl.textContent = '用户名只能使用英文字母和数字';
         errorEl.style.display = 'block';
         return;
     }
+
+    // 校验密码：至少6位
+    if (password.length < 6) {
+        errorEl.textContent = '密码至少6位';
+        errorEl.style.display = 'block';
+        return;
+    }
+
     if (password !== confirm) {
         errorEl.textContent = '两次密码不一致';
         errorEl.style.display = 'block';
@@ -156,23 +130,33 @@ function registerUser() {
         return;
     }
 
-    const saved = localStorage.getItem('today_eaten_users');
-    const users = saved ? JSON.parse(saved) : {};
+    errorEl.textContent = '⏳ 注册中...';
+    errorEl.style.display = 'block';
 
-    if (users[name]) {
-        errorEl.textContent = '该用户名已存在，请直接登录';
+    // Supabase 注册
+    const result = await userSignUp(name, password);
+
+    if (!result.success) {
+        errorEl.textContent = result.error || '注册失败';
         errorEl.style.display = 'block';
         return;
     }
 
-    users[name] = { password };
-    localStorage.setItem('today_eaten_users', JSON.stringify(users));
+    // 暂存当前用户到 localStorage（兼容现有数据层）
     localStorage.setItem('today_eaten_current', name);
+
+    // 也写入 today_eaten_users 方便管理员后台查看（不存密码）
+    const saved = localStorage.getItem('today_eaten_users');
+    const users = saved ? JSON.parse(saved) : {};
+    if (!users[name]) {
+        users[name] = { password: '🔒 Supabase', registered: true };
+        localStorage.setItem('today_eaten_users', JSON.stringify(users));
+    }
 
     doLogin(name);
 }
 
-function loginUser() {
+async function loginUser() {
     const name = document.getElementById('loginName').value.trim();
     const password = document.getElementById('loginPassword').value.trim();
     const autoLogin = document.getElementById('autoLoginCheck')?.checked;
@@ -184,23 +168,22 @@ function loginUser() {
         return;
     }
 
-    const saved = localStorage.getItem('today_eaten_users');
-    if (!saved) {
-        errorEl.textContent = '用户不存在，请先注册';
+    errorEl.textContent = '⏳ 登录中...';
+    errorEl.style.display = 'block';
+
+    // Supabase 登录
+    const result = await userSignIn(name, password);
+
+    if (!result.success) {
+        errorEl.textContent = result.error || '登录失败';
         errorEl.style.display = 'block';
         return;
     }
 
-    const users = JSON.parse(saved);
-    if (!users[name] || users[name].password !== password) {
-        errorEl.textContent = '用户名或密码错误';
-        errorEl.style.display = 'block';
-        return;
-    }
-
-    // 保存自动登录设置
+    // 保存登录状态
     localStorage.setItem('today_eaten_auto_login', autoLogin ? 'true' : 'false');
     localStorage.setItem('today_eaten_current', name);
+
     doLogin(name);
 }
 
@@ -246,6 +229,9 @@ function switchUser(name) {
 }
 
 function logoutUser() {
+    // Supabase 登出
+    userSignOut();
+    
     localStorage.removeItem('today_eaten_current');
     // 保留自动登录设置，只清除当前会话
     surveyState.currentUser = null;
