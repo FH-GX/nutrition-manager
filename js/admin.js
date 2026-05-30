@@ -455,7 +455,7 @@ function exportKnowledgeBase() {
 // 标签切换
 // ============================================
 
-function switchAdminTab(tab) {
+async function switchAdminTab(tab) {
     // 隐藏所有tab内容
     document.querySelectorAll('.admin-tab-content').forEach(el => {
         el.classList.remove('active');
@@ -478,7 +478,7 @@ function switchAdminTab(tab) {
         renderUserLevelList();
     }
     if (tab === 'users') {
-        renderUserManagement();
+        await renderUserManagement();
         loadRegCodeSetting();
     }
 }
@@ -565,38 +565,48 @@ function getAccountList() {
 /**
  * 渲染用户管理列表
  */
-function renderUserManagement() {
+async function renderUserManagement() {
     const container = document.getElementById('userListContainer');
     if (!container) return;
 
-    const saved = localStorage.getItem('today_eaten_users');
-    const users = saved ? JSON.parse(saved) : {};
-    const names = Object.keys(users);
+    // 从 Supabase 读取用户列表
+    let supabaseUsers = [];
+    try {
+        const sb = getSupabase();
+        if (sb) {
+            const { data, error } = await sb
+                .from('user_accounts')
+                .select('id, username, auth_id')
+                .order('id', { ascending: true });
+            if (!error && data) supabaseUsers = data;
+        }
+    } catch (e) {
+        console.warn('Supabase读取用户失败:', e.message);
+    }
 
     const countEl = document.getElementById('userCount');
-    if (countEl) countEl.textContent = `共 ${names.length} 个用户`;
+    if (countEl) countEl.textContent = `共 ${supabaseUsers.length} 个用户`;
 
-    if (names.length === 0) {
+    if (supabaseUsers.length === 0) {
         container.innerHTML = '<div class="admin-empty">暂无注册用户</div>';
         return;
     }
 
     let html = '<div class="admin-users-grid">';
-    names.forEach((name, idx) => {
-        const user = users[name];
-        const pwd = user && user.password ? user.password : '—';
+    supabaseUsers.forEach((user, idx) => {
+        const email = user.username || '—';
+        const displayName = email.includes('@') ? email.split('@')[0] : email;
         html += `
             <div class="admin-user-card">
                 <div class="admin-user-avatar">👤</div>
                 <div class="admin-user-info">
-                    <div class="admin-user-name">${escapeHtml(name)}</div>
-                    <div class="admin-user-pwd">🔑 ${escapeHtml(pwd)}</div>`;
+                    <div class="admin-user-name">${escapeHtml(displayName)}</div>
+                    <div class="admin-user-pwd">📧 ${escapeHtml(email)}</div>`;
 
-        // 前4个用户显示等级选择器（与用户等级系统保持一致）
-        if (idx < 4) {
-            const level = (typeof getUserLevel === 'function') ? getUserLevel(idx) : 'free';
-            const levelInfo = LEVEL_CONFIG.find(l => l.key === level) || LEVEL_CONFIG[0];
-            html += `
+        // 等级选择器（与用户等级系统保持一致）
+        const level = (typeof getUserLevel === 'function') ? getUserLevel(idx) : 'free';
+        const levelInfo = LEVEL_CONFIG.find(l => l.key === level) || LEVEL_CONFIG[0];
+        html += `
                     <div class="admin-user-level-select">
                         <span class="admin-user-level-icon">${levelInfo.icon}</span>
                         <select onchange="changeUserLevelFromMgt(${idx}, this.value)">
@@ -607,11 +617,10 @@ function renderUserManagement() {
                             `).join('')}
                         </select>
                     </div>`;
-        }
 
         html += `
                 </div>
-                <button class="admin-btn-sm admin-btn-danger" onclick="deleteUser('${escapeHtml(name)}')">🗑️ 删除</button>
+                <button class="admin-btn-sm admin-btn-danger" onclick="deleteUser('${escapeHtml(email)}')">🗑️ 删除</button>
             </div>
         `;
     });
