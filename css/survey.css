@@ -76,6 +76,21 @@ header {
     color: white;
 }
 
+/* 右上角图标按钮（如设置） */
+.header-icon-btn {
+    background: none;
+    border: none;
+    font-size: 1.2rem;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 6px;
+    line-height: 1;
+    transition: background 0.2s;
+}
+.header-icon-btn:hover {
+    background: rgba(0,0,0,0.06);
+}
+
 /* 填写说明 */
 .survey-instructions {
     background: #f8fbff;
@@ -695,22 +710,65 @@ header {
     min-width: 160px;
 }
 
-/* 自动登录 */
+/* 保存密码 — 自定义开关 */
 .auth-auto-login {
     display: flex;
     align-items: center;
-    gap: 8px;
-    margin: 8px 0 16px;
+    gap: 10px;
+    margin: 12px 0 18px;
     font-size: 0.85rem;
-    color: var(--text-light);
+    color: #555;
     cursor: pointer;
+    user-select: none;
 }
 
+/* 隐藏原生checkbox，用自定义开关代替 */
 .auth-auto-login input[type="checkbox"] {
-    width: 18px;
-    height: 18px;
-    accent-color: var(--primary);
+    appearance: none;
+    -webkit-appearance: none;
+    width: 44px;
+    height: 26px;
+    background: #d0d5dd;
+    border-radius: 13px;
     cursor: pointer;
+    position: relative;
+    transition: background 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    flex-shrink: 0;
+    outline: none;
+    border: none;
+}
+
+/* 开关圆点 */
+.auth-auto-login input[type="checkbox"]::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 20px;
+    height: 20px;
+    background: white;
+    border-radius: 50%;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 选中态 */
+.auth-auto-login input[type="checkbox"]:checked {
+    background: var(--primary);
+}
+
+.auth-auto-login input[type="checkbox"]:checked::after {
+    transform: translateX(18px);
+}
+
+/* 聚焦态 */
+.auth-auto-login input[type="checkbox"]:focus-visible {
+    box-shadow: 0 0 0 3px rgba(39, 174, 96, 0.25);
+}
+
+/* hover */
+.auth-auto-login:hover input[type="checkbox"]:not(:checked) {
+    background: #bcc3d0;
 }
 
 /* 响应式 */
@@ -737,3 +795,11 @@ header {
         border-radius: 8px;
     }
 }
+
+/* ============================================
+   通用消息提示（配合 utils.js 的 $msg()）
+   ============================================ */
+.msg-success { color: #2e7d32; font-size: 0.85rem; margin-top: 4px; }
+.msg-error { color: #c62828; font-size: 0.85rem; margin-top: 4px; }
+.msg-info { color: #1565c0; font-size: 0.85rem; margin-top: 4px; }
+.msg-warning { color: #e65100; font-size: 0.85rem; margin-top: 4px; }

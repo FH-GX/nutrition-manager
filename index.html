@@ -19,6 +19,7 @@
             </div>
             <div class="header-right" id="headerRight" style="display:none;">
                 <span class="header-user" id="headerUserName"></span>
+                <button class="header-icon-btn" onclick="showSettings()" title="设置">⚙️</button>
                 <button class="header-logout-btn" onclick="logoutUser()">🚪 退出</button>
             </div>
         </header>
@@ -62,8 +63,8 @@
                         <input type="password" id="loginPassword" placeholder="输入密码" class="auth-input" autocomplete="current-password">
                     </div>
                     <label class="auth-auto-login">
-                        <input type="checkbox" id="autoLoginCheck" checked>
-                        <span>自动登录</span>
+                        <input type="checkbox" id="autoLoginCheck">
+                        <span>保存密码</span>
                     </label>
                     <button class="btn-calculate" id="loginBtn">🔑 登录</button>
                 </div>
@@ -77,52 +78,62 @@
         ============================================ -->
         <div id="calculatorSection" style="display:none;">
             <!-- 顶部切换区 -->
-            <div class="nav-tabs">
-                <button class="nav-btn active" onclick="showCalculator()">🧮 营养计算器</button>
-                <button class="nav-btn" onclick="showSurvey()">📋 填写问卷</button>
-                <button class="nav-btn" onclick="showHistory()">📊 我的记录</button>
-                <button class="nav-btn" onclick="showFoodDatabase()">🍎 食物库</button>
-            </div>
+            <div id="nav-calculatorSection" class="nav-tabs"></div>
 
-            <!-- 输入表单区 -->
+            <!-- 基本信息（已保存到设置页） -->
             <div class="card" id="inputSection">
-                <h2>📋 基本信息</h2>
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label for="name">姓名</label>
-                        <input type="text" id="name" placeholder="如：张三" value="">
+                <h2>📋 我的档案</h2>
+                <div id="basicInfoSummary">
+                    <p style="color:var(--text-light);">加载中...</p>
+                </div>
+
+                <!-- 内联编辑表单（默认隐藏） -->
+                <div id="calcEditForm" style="display:none;">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>姓名</label>
+                            <input type="text" id="calcEditName" placeholder="如：张三" class="auth-input">
+                        </div>
+                        <div class="form-group">
+                            <label>性别</label>
+                            <select id="calcEditGender" class="auth-input">
+                                <option value="male">男</option>
+                                <option value="female">女</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>年龄（岁）</label>
+                            <input type="number" id="calcEditAge" placeholder="如：45" min="18" max="100" class="auth-input">
+                        </div>
+                        <div class="form-group">
+                            <label>身高（cm）</label>
+                            <input type="number" id="calcEditHeight" placeholder="如：170" min="100" max="220" class="auth-input">
+                        </div>
+                        <div class="form-group">
+                            <label>体重（kg）</label>
+                            <input type="number" id="calcEditWeight" placeholder="如：70" min="30" max="200" step="0.1" class="auth-input">
+                        </div>
+                        <div class="form-group">
+                            <label>活动水平</label>
+                            <select id="calcEditActivity" class="auth-input">
+                                <option value="1.2">卧床（几乎不活动）</option>
+                                <option value="1.375">轻体力劳动（办公室/少量活动）</option>
+                                <option value="1.55" selected>中体力劳动（每周运动3-5天）</option>
+                                <option value="1.725">重体力劳动（每周运动6-7天）</option>
+                            </select>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label for="gender">性别</label>
-                        <select id="gender">
-                            <option value="male">男</option>
-                            <option value="female">女</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="age">年龄（岁）</label>
-                        <input type="number" id="age" placeholder="如：45" min="18" max="100" value="">
-                    </div>
-                    <div class="form-group">
-                        <label for="height">身高（cm）</label>
-                        <input type="number" id="height" placeholder="如：170" min="100" max="220" value="">
-                    </div>
-                    <div class="form-group">
-                        <label for="weight">体重（kg）</label>
-                        <input type="number" id="weight" placeholder="如：70" min="30" max="200" step="0.1" value="">
-                    </div>
-                    <div class="form-group">
-                        <label for="activity">活动水平 <button type="button" class="help-icon-btn" onclick="alert('🏃 活动水平说明\n\n卧床 — 几乎不活动\n轻体力劳动 — 办公室工作、75%时间坐着\n中体力劳动 — 学生、销售、有一定职业活动量\n重体力劳动 — 工人、农民、每天高强度运动\n\n按工作类型选，不是运动量')" title="查看说明">❓</button></label>
-                        <select id="activity">
-                            <option value="1.2">卧床（几乎不活动）</option>
-                            <option value="1.375">轻体力劳动（办公室/少量活动）</option>
-                            <option value="1.55" selected>中体力劳动（每周运动3-5天）</option>
-                            <option value="1.725">重体力劳动（每周运动6-7天）</option>
-                        </select>
+                    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px;">
+                        <button class="btn-primary" onclick="saveCalcBasicInfo()">💾 保存</button>
+                        <button class="btn-secondary" onclick="cancelCalcEdit()">取消</button>
+                        <span id="calcEditMsg" style="font-size:0.85rem;color:var(--text-light);align-self:center;"></span>
                     </div>
                 </div>
 
-                <button class="btn-calculate" id="calculateBtn">📋 下一步：填写饮食问卷</button>
+                <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;">
+                    <button class="btn-calculate" id="calculateBtn">🧮 生成营养方案</button>
+                    <button class="btn-secondary" onclick="toggleCalcEdit()" id="calcEditBtn">✏️ 修改信息</button>
+                </div>
             </div>
 
             <!-- 原始结果区（供计算器重算用） -->
@@ -187,14 +198,8 @@
         方案生成页面（问卷提交后显示，独立于calculatorSection）
         ============================================ -->
         <div id="resultPageSection" style="display:none;">
-            <!-- 顶部导航 -->
-            <div class="nav-tabs">
-                <button class="nav-btn" onclick="showCalculator()">🧮 营养计算器</button>
-                <button class="nav-btn" onclick="showSurvey()">📋 填写问卷</button>
-                <button class="nav-btn active">📊 方案生成</button>
-                <button class="nav-btn" onclick="showFoodDatabase()">🍎 食物库</button>
-                <button class="nav-btn nav-btn-logout" onclick="logoutUser()">🚪 退出登录</button>
-            </div>
+            <!-- 顶部导航（由JS动态生成） -->
+            <div id="nav-resultPageSection" class="nav-tabs"></div>
 
             <!-- 用户信息 -->
             <div class="result-user-info">
@@ -205,7 +210,7 @@
             <div class="card" id="intakeAnalysisCard">
                 <div style="margin-bottom:12px;">
                     <button class="btn-secondary" onclick="showSurvey()" style="display:inline-flex;align-items:center;gap:4px;padding:6px 14px;border-radius:8px;background:#f0f0f0;border:none;cursor:pointer;font-size:0.85rem;color:#555;">
-                        ← 返回填写问卷
+                        📋 填写饮食问卷
                     </button>
                 </div>
                 <h3>📊 您的实际饮食分析（近3个月）</h3>
@@ -236,12 +241,7 @@
 
         <div id="surveySection" style="display:none;">
             <!-- 顶部切换区 -->
-            <div class="nav-tabs">
-                <button class="nav-btn" onclick="showCalculator()">🧮 营养计算器</button>
-                <button class="nav-btn" onclick="showSurvey()">📋 填写问卷</button>
-                <button class="nav-btn" onclick="showHistory()">📊 我的记录</button>
-                <button class="nav-btn" onclick="showFoodDatabase()">🍎 食物库</button>
-            </div>
+            <div id="nav-surveySection" class="nav-tabs"></div>
 
             <div class="card">
                 <div style="margin-bottom:12px;">
@@ -299,6 +299,7 @@
                 </div>
 
                 <button class="btn-calculate" id="surveySubmitBtn">✅ 提交问卷</button>
+                <button class="btn-secondary" onclick="skipSurvey()" style="margin-top:8px;">⏭️ 暂不填写</button>
             </div>
         </div>
 
@@ -307,12 +308,7 @@
     ============================================ -->
     <div id="historySection" style="display:none;">
         <!-- 顶部切换区 -->
-        <div class="nav-tabs">
-            <button class="nav-btn" onclick="showCalculator()">🧮 营养计算器</button>
-            <button class="nav-btn" onclick="showSurvey()">📋 填写问卷</button>
-            <button class="nav-btn active" onclick="showHistory()">📊 我的记录</button>
-            <button class="nav-btn" onclick="showFoodDatabase()">🍎 食物库</button>
-        </div>
+        <div id="nav-historySection" class="nav-tabs"></div>
         <div id="calendarContainer"></div>
     </div>
 
@@ -321,12 +317,7 @@
         ============================================ -->
         <div id="foodDbSection" style="display:none;">
             <!-- 顶部切换区 -->
-            <div class="nav-tabs">
-                <button class="nav-btn" onclick="showCalculator()">🧮 营养计算器</button>
-                <button class="nav-btn" onclick="showSurvey()">📋 填写问卷</button>
-                <button class="nav-btn" onclick="showHistory()">📊 我的记录</button>
-                <button class="nav-btn active" onclick="showFoodDatabase()">🍎 食物库</button>
-            </div>
+            <div id="nav-foodDbSection" class="nav-tabs"></div>
 
             <div class="card">
                 <div class="survey-header">
@@ -358,6 +349,118 @@
 
                 <!-- 食物卡片网格 -->
                 <div class="food-db-grid" id="foodDbGrid"></div>
+            </div>
+        </div>
+
+        <!-- ============================================
+        设置页面
+        ============================================ -->
+        <div id="settingsSection" style="display:none;">
+            <!-- 顶部切换区 -->
+            <div id="nav-settingsSection" class="nav-tabs"></div>
+
+            <div class="card">
+                <h2>👤 账号信息</h2>
+                <div id="settingsAccountInfo">
+                    <p>加载中...</p>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="settings-card-header">
+                    <h2>👤 基本信息</h2>
+                    <button class="btn-secondary btn-sm" onclick="toggleSettingsEdit('basicInfo')" id="settingsBasicEditBtn">✏️ 编辑</button>
+                </div>
+                <p class="settings-desc">填一次永久保存，用于每日营养方案计算。</p>
+
+                <!-- 摘要显示区 -->
+                <div id="settingsBasicSummary">
+                    <p style="color:var(--text-light);">暂无数据，请先填写。</p>
+                </div>
+
+                <!-- 编辑表单区（默认隐藏） -->
+                <div id="settingsBasicForm" style="display:none;">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>姓名</label>
+                            <input type="text" id="settingsName" placeholder="如：张三" class="auth-input">
+                        </div>
+                        <div class="form-group">
+                            <label>性别</label>
+                            <select id="settingsGender" class="auth-input">
+                                <option value="male">男</option>
+                                <option value="female">女</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>年龄（岁）</label>
+                            <input type="number" id="settingsAge" placeholder="如：45" min="18" max="100" class="auth-input">
+                        </div>
+                        <div class="form-group">
+                            <label>身高（cm）</label>
+                            <input type="number" id="settingsHeight" placeholder="如：170" min="100" max="220" class="auth-input">
+                        </div>
+                        <div class="form-group">
+                            <label>体重（kg）</label>
+                            <input type="number" id="settingsWeight" placeholder="如：70" min="30" max="200" step="0.1" class="auth-input">
+                        </div>
+                        <div class="form-group">
+                            <label>活动水平</label>
+                            <select id="settingsActivity" class="auth-input">
+                                <option value="1.2">卧床（几乎不活动）</option>
+                                <option value="1.375">轻体力劳动（办公室/少量活动）</option>
+                                <option value="1.55" selected>中体力劳动（每周运动3-5天）</option>
+                                <option value="1.725">重体力劳动（每周运动6-7天）</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="settings-actions">
+                        <button class="btn-primary" onclick="saveSettingsBasicInfo()">💾 保存</button>
+                        <button class="btn-secondary" onclick="cancelSettingsEdit('basicInfo')">取消</button>
+                        <span class="msg" id="settingsBasicMsg"></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="settings-card-header">
+                    <h2>🔑 修改密码</h2>
+                    <button class="btn-secondary btn-sm" onclick="toggleSettingsEdit('password')" id="settingsPwdEditBtn">🔑 修改</button>
+                </div>
+                <div id="settingsPwdForm" style="display:none;">
+                    <div class="form-group">
+                        <label>当前密码</label>
+                        <input type="password" id="settingsCurPwd" placeholder="输入当前密码" class="auth-input">
+                    </div>
+                    <div class="form-group">
+                        <label>新密码</label>
+                        <input type="password" id="settingsNewPwd" placeholder="至少6位" class="auth-input">
+                    </div>
+                    <div class="form-group">
+                        <label>确认新密码</label>
+                        <input type="password" id="settingsConfirmPwd" placeholder="再次输入新密码" class="auth-input">
+                    </div>
+                    <div class="settings-actions" style="margin-top:8px;">
+                        <button class="btn-primary" onclick="changeUserPassword()">💾 保存</button>
+                        <button class="btn-secondary" onclick="cancelSettingsEdit('password')">取消</button>
+                    </div>
+                    <div id="settingsPwdMsg" style="margin-top:8px;font-size:0.85rem;"></div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>📋 我的饮食问卷</h2>
+                <p class="settings-desc">查看已填写的饮食问卷数据，也可重新填写。</p>
+                <div id="settingsSurveyResults">
+                    <p style="color:var(--text-light);">暂无填写记录。</p>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>⭐ 账号等级</h2>
+                <div id="settingsLevelInfo">
+                    <p>加载中...</p>
+                </div>
             </div>
         </div>
 
@@ -550,10 +653,16 @@
     </div>
 
     <!-- Supabase SDK -->
+    <!-- 工具模块（先加载，供后续文件使用） -->
+    <script src="js/utils.js"></script>
+    <script src="js/storage.js"></script>
+
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="data/foods.js"></script>
     <script src="data/minerals_vitamins.js"></script>
     <script src="data/survey-data.js"></script>
+    <script src="js/nav.js"></script>
+    <script src="js/calculator.js"></script>
     <script src="js/app.js"></script>
     <script src="js/supabase.js"></script>
     <script src="js/admin.js"></script>

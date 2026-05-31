@@ -23,7 +23,6 @@ function initSupabase() {
                 detectSessionInUrl: false,
             },
         });
-        console.log('✅ Supabase客户端已初始化');
     }
     return supabaseClient;
 }
@@ -419,5 +418,23 @@ async function getCurrentUserEmail() {
         return session.user.email || null;
     } catch {
         return null;
+    }
+}
+
+/**
+ * 修改当前登录用户的密码
+ * @param {string} newPassword - 新密码（至少6位）
+ * @returns {Promise<{success: boolean, error?: string}>}
+ */
+async function changePassword(newPassword) {
+    try {
+        const sb = getSupabase();
+        if (!sb) return { success: false, error: 'Supabase未初始化' };
+
+        const { error } = await sb.auth.updateUser({ password: newPassword });
+        if (error) return { success: false, error: error.message };
+        return { success: true };
+    } catch (err) {
+        return { success: false, error: err.message };
     }
 }

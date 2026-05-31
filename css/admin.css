@@ -741,6 +741,31 @@
     color: white;
 }
 
+.admin-btn-sm.admin-btn-warning {
+    background: #fff3e0;
+    color: #e65100;
+    border: 1px solid #ffe0b2;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.admin-btn-sm.admin-btn-warning:hover {
+    background: #e65100;
+    color: white;
+}
+
+.admin-user-actions {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
 /* ============================================
    学习模式（家人查看页面）
    ============================================ */
@@ -848,4 +873,116 @@
         align-items: flex-start;
         gap: 2px;
     }
+}
+
+/* ============================================
+   清空数据选择面板样式
+   ============================================ */
+.clear-data-panel {
+    max-width: 400px;
+    width: 90vw;
+}
+
+.clear-data-section {
+    margin-bottom: 6px;
+}
+
+.clear-data-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 6px;
+}
+
+.clear-data-option {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: background 0.15s;
+}
+
+.clear-data-option:hover {
+    background: rgba(0,0,0,0.04);
+}
+
+.clear-data-option input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: var(--danger);
+}
+
+/* Admin dialog / clear-data */
+.clear-msg {
+    margin-bottom: 12px;
+    font-size: 0.85rem;
+    color: var(--text-light);
+}
+.clear-section {
+    margin-top: 10px;
+}
+.clear-option {
+    margin-bottom: 6px;
+}
+.clear-date-range {
+    padding-left: 22px;
+    margin-top: 4px;
+}
+.clear-label {
+    font-size: 0.78rem;
+    color: var(--text-light);
+}
+.clear-date-input {
+    font-size: 0.8rem;
+    padding: 3px 6px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    margin: 0 4px;
+}
+.clear-warning {
+    margin-top: 10px;
+    font-size: 0.75rem;
+    color: var(--danger);
+}
+.clear-actions {
+    margin-top: 12px;
+}
+.btn-danger {
+    background: var(--danger) !important;
+    border-color: var(--danger) !important;
+}
+
+/* Learn empty state */
+.learn-empty-card {
+    text-align: center;
+    padding: 40px;
+}
+.learn-empty-icon {
+    font-size: 2rem;
+    margin-bottom: 12px;
+}
+.learn-empty-hint {
+    color: var(--text-light);
+    font-size: 0.85rem;
+    margin-top: 8px;
+}
+.learn-empty-btn {
+    max-width: 300px;
+    margin: 20px auto;
+}
+.learn-footer {
+    text-align: center;
+    margin-top: 20px;
+}
+.learn-footer-text {
+    font-size: 0.85rem;
+    color: var(--text-light);
+}
+.learn-back-btn {
+    max-width: 200px;
+    margin: 12px auto;
 }

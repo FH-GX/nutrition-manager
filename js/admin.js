@@ -620,7 +620,10 @@ async function renderUserManagement() {
 
         html += `
                 </div>
-                <button class="admin-btn-sm admin-btn-danger" onclick="deleteUser('${escapeHtml(email)}')">🗑️ 删除</button>
+                <div class="admin-user-actions">
+                    <button class="admin-btn-sm admin-btn-danger" onclick="deleteUser('${escapeHtml(email)}')">🗑️ 删除</button>
+                    <button class="admin-btn-sm admin-btn-warning" onclick="clearUserData('${escapeHtml(email)}')">🧹 清空数据</button>
+                </div>
             </div>
         `;
     });
@@ -648,17 +651,26 @@ function changeUserLevelFromMgt(userIdx, level) {
 async function deleteUser(name) {
     if (!confirm(`⚠️ 确定要删除用户「${name}」吗？\n\n此操作不可恢复！`)) return;
 
-    // 1. 删 Supabase user_accounts（级联删除所有关联数据）
+    // 1. 删 Supabase 数据（手动级联，表无ON DELETE CASCADE）
     try {
         const sb = getSupabase();
         if (sb) {
+            const tablesToClean = ['meal_plans', 'checkin_logs', 'energy_compensations', 'survey_results'];
+            for (const table of tablesToClean) {
+                const { error } = await sb
+                    .from(table)
+                    .delete()
+                    .eq('username', name);
+                if (error) console.warn(`删除${table}失败:`, error.message);
+            }
+            // 最后删 user_accounts
             const { error } = await sb
                 .from('user_accounts')
                 .delete()
                 .eq('username', name);
             if (error) {
                 console.warn('Supabase删除失败:', error.message);
-                showAdminToast('⚠️ Supabase同步删除失败: ' + error.message, 'error');
+                showAdminToast('⚠️ Supabase删除失败: ' + error.message, 'error');
             } else {
                 showAdminToast('✅ 已同步删除Supabase数据', 'success');
             }
@@ -684,6 +696,211 @@ async function deleteUser(name) {
 
     showAdminToast(`✅ 已删除用户「${name}」`, 'success');
     renderUserManagement();
+}
+
+/**
+ * 显示清空数据选择面板
+ */
+function showClearDataPanel(email) {
+    if (!email) return;
+
+    const overlay = document.createElement('div');
+    overlay.className = 'dialog-overlay';
+    overlay.id = 'clearDataOverlay';
+
+    overlay.innerHTML = `
+        <div class="dialog-popup clear-data-panel">
+            <div class="dialog-body">
+                <div class="dialog-title">🧹 清空数据选择</div>
+                <div class="clear-msg">
+                    用户：${email}
+                </div>
+                <div class="clear-data-section">
+                    <div class="clear-data-label">选择要清空的数据类型：</div>
+                    <label class="clear-data-option">
+                        <input type="checkbox" class="clear-type-cb" value="checkin" checked>
+                        <span>📅 打卡记录</span>
+                    </label>
+                    <label class="clear-data-option">
+                        <input type="checkbox" class="clear-type-cb" value="mealPlan" checked>
+                        <span>📋 方案数据</span>
+                    </label>
+                    <label class="clear-data-option">
+                        <input type="checkbox" class="clear-type-cb" value="energyComp" checked>
+                        <span>🔄 能量补偿</span>
+                    </label>
+                    <label class="clear-data-option">
+                        <input type="checkbox" class="clear-type-cb" value="survey" checked>
+                        <span>📝 问卷结果</span>
+                    </label>
+                </div>
+                <div class="clear-data-section clear-section">
+                    <label class="clear-data-option clear-option">
+                        <input type="checkbox" id="clearDateToggle">
+                        <span>📅 指定日期范围（可选）</span>
+                    </label>
+                    <div id="clearDateRange" class="clear-date-range" style="display:none;">
+                        <span class="clear-label">从</span>
+                        <input type="date" id="clearDateFrom" class="clear-date-input">
+                        <span class="clear-label">到</span>
+                        <input type="date" id="clearDateTo" class="clear-date-input">
+                    </div>
+                </div>
+                <div class="clear-warning">
+                    ⚠️ 此操作不可撤销！
+                </div>
+            </div>
+            <div class="dialog-actions clear-actions">
+                <button class="btn-secondary" id="clearDataCancel">取消</button>
+                <button class="btn-primary btn-danger" id="clearDataConfirm">确认清空选中数据</button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    // 日期范围toggle
+    document.getElementById('clearDateToggle').addEventListener('change', function() {
+        document.getElementById('clearDateRange').style.display = this.checked ? 'block' : 'none';
+    });
+
+    const close = () => {
+        if (document.body.contains(overlay)) document.body.removeChild(overlay);
+    };
+
+    document.getElementById('clearDataCancel').addEventListener('click', close);
+
+    document.getElementById('clearDataConfirm').addEventListener('click', () => {
+        // 收集选中的类型
+        const cbs = document.querySelectorAll('.clear-type-cb:checked');
+        const types = Array.from(cbs).map(cb => cb.value);
+
+        if (types.length === 0) {
+            showAdminToast('⚠️ 请至少选择一种数据类型', 'error');
+            return;
+        }
+
+        // 收集日期范围
+        let dateFrom = null, dateTo = null;
+        if (document.getElementById('clearDateToggle').checked) {
+            dateFrom = document.getElementById('clearDateFrom').value || null;
+            dateTo = document.getElementById('clearDateTo').value || null;
+        }
+
+        close();
+
+        // 二次确认（简短版）
+        let typeNames = types.map(t => ({ checkin: '打卡', mealPlan: '方案', energyComp: '能量补偿', survey: '问卷' }[t])).join('、');
+        let dateInfo = '';
+        if (dateFrom && dateTo) dateInfo = `（${dateFrom} ~ ${dateTo}）`;
+        else if (dateFrom) dateInfo = `（从${dateFrom}起）`;
+        else if (dateTo) dateInfo = `（截至${dateTo}）`;
+
+        showConfirmDialog({
+            title: '🧹 确认清空',
+            message: `将清空「${email}」的 ${typeNames}${dateInfo}\n\n此操作不可撤销！`,
+            confirmText: '确认清空',
+            danger: true,
+            onConfirm: () => executeClearUserData(email, types, { from: dateFrom, to: dateTo })
+        });
+    });
+}
+
+/**
+ * 清空指定用户的数据（选择性）
+ * @param {string} email - 用户名/邮箱
+ * @param {string[]} types - ['checkin','mealPlan','energyComp','survey']
+ * @param {Object} dateRange - { from: string|null, to: string|null }
+ */
+function executeClearUserData(email, types = null, dateRange = { from: null, to: null }) {
+    if (!types) types = ['checkin', 'mealPlan', 'energyComp', 'survey'];
+    
+    // 类型映射到 localStorage key 前缀
+    const typeToLocalKeys = {
+        checkin: ['checkin'],
+        mealPlan: ['mealHistory'],
+        energyComp: ['debt', 'energyComp'],
+        survey: [] // 问卷单独处理
+    };
+
+    const prefix = 'nutri_';
+
+    // 1. 清除 localStorage
+    for (let idx = 0; idx < 4; idx++) {
+        types.forEach(t => {
+            const localKeys = typeToLocalKeys[t] || [];
+            localKeys.forEach(base => {
+                const key = `${prefix}${base}_${idx}`;
+                if (localStorage.getItem(key) !== null) {
+                    localStorage.removeItem(key);
+                }
+            });
+        });
+    }
+
+    // 问卷（按邮箱存储）
+    if (types.includes('survey')) {
+        const surveyKey = `${prefix}survey_${email}`;
+        if (localStorage.getItem(surveyKey) !== null) {
+            localStorage.removeItem(surveyKey);
+        }
+    }
+
+    // 2. 清除 Supabase 数据
+    const sb = getSupabase();
+    if (sb) {
+        (async () => {
+            try {
+                // 查找该用户的 auth_id
+                const { data: userData } = await sb
+                    .from('user_accounts')
+                    .select('auth_id')
+                    .eq('username', email)
+                    .limit(1);
+
+                const authId = (userData && userData.length > 0) ? userData[0].auth_id : null;
+
+                // 表名映射：type -> { table, field }
+                const supabaseMap = {
+                    checkin: { table: 'checkin_logs', field: authId ? 'auth_id' : 'username' },
+                    mealPlan: { table: 'meal_plans', field: authId ? 'auth_id' : 'username' },
+                    energyComp: { table: 'energy_compensations', field: authId ? 'auth_id' : 'username' },
+                    survey: { table: 'survey_results', field: 'username' }
+                };
+
+                for (const t of types) {
+                    const cfg = supabaseMap[t];
+                    if (!cfg) continue;
+
+                    let query = sb.from(cfg.table).delete();
+
+                    // 按 email 或 auth_id 过滤
+                    const filterVal = (cfg.field === 'auth_id' && authId) ? authId : email;
+                    query = query.eq(cfg.field, filterVal);
+
+                    // 日期范围过滤（对带日期的表）
+                    if (dateRange && t !== 'survey') {
+                        if (dateRange.from) query = query.gte('date', dateRange.from);
+                        if (dateRange.to) query = query.lte('date', dateRange.to);
+                    }
+
+                    await query;
+                }
+            } catch (e) {
+                console.warn('Supabase 清空数据失败:', e.message);
+            }
+        })();
+    }
+
+    const typeNames = types.map(t => ({ checkin: '打卡', mealPlan: '方案', energyComp: '能量补偿', survey: '问卷' }[t])).join('、');
+    showAdminToast(`✅ 已清空「${email}」的 ${typeNames}`, 'success');
+    renderUserManagement();
+}
+
+/** 旧版清空函数 — 保留为快捷入口（全选） */
+function clearUserData(email) {
+    if (!email) return;
+    showClearDataPanel(email);
 }
 
 /**
@@ -742,11 +959,11 @@ async function initLearningMode() {
                 <h1>📚 营养扫盲学习台</h1>
                 <p class="subtitle">管理员尚未设置学习内容，请稍后再来查看</p>
             </header>
-            <div class="card" style="text-align:center;padding:40px;">
-                <p style="font-size:2rem;margin-bottom:12px;">📭</p>
+            <div class="card learn-empty-card">
+                <p class="learn-empty-icon">📭</p>
                 <p>还没有可学习的内容</p>
-                <p style="color:var(--text-light);font-size:0.85rem;margin-top:8px;">请管理员登录后，在"扫盲学习台"中勾选要展示的内容</p>
-                <button class="btn-calculate" style="max-width:300px;margin:20px auto;" onclick="window.location.href=window.location.pathname">返回计算器</button>
+                <p class="learn-empty-hint">请管理员登录后，在"扫盲学习台"中勾选要展示的内容</p>
+                <button class="btn-calculate learn-empty-btn" onclick="window.location.href=window.location.pathname">返回计算器</button>
             </div>
         `;
         return;
@@ -774,9 +991,9 @@ async function initLearningMode() {
     });
 
     html += `
-        <footer style="text-align:center;margin-top:20px;">
-            <p style="font-size:0.85rem;color:var(--text-light);">📱 翻看学习，每天进步一点点</p>
-            <button class="btn-secondary" style="max-width:200px;margin:12px auto;" onclick="window.location.href=window.location.pathname">← 返回计算器</button>
+        <footer class="learn-footer">
+            <p class="learn-footer-text">📱 翻看学习，每天进步一点点</p>
+            <button class="btn-secondary learn-back-btn" onclick="window.location.href=window.location.pathname">← 返回计算器</button>
         </footer>
     `;
 

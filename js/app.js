@@ -18,68 +18,10 @@ const MAX_USERS = 4;
 let users = [{}, {}, {}, {}]; // 4个独立用户数据
 let currentUser = 0;
 
-// ============================================
-// 用户等级系统
-// ============================================
-
-const USER_LEVELS = {
-    free: { label: '普通', days: 90, icon: '⭐' },
-    vip: { label: 'VIP', days: 180, icon: '🌙' },
-    plus: { label: 'Plus', days: 365, icon: '☀️' },
-    permanent: { label: '永久', days: -1, icon: '👑' }
-};
-
-/**
- * 获取某用户的等级 key
- * @param {number} userIdx - 用户索引 0-3
- * @returns {string} 'free' | 'vip' | 'plus' | 'permanent'
- */
-function getUserLevel(userIdx) {
-    if (userIdx === undefined) userIdx = currentUser;
-    try {
-        const key = `nutri_user_level_${userIdx}`;
-        return localStorage.getItem(key) || 'free';
-    } catch { return 'free'; }
-}
-
-/**
- * 保存某用户的等级
- * @param {number} userIdx
- * @param {string} level
- */
-function saveUserLevel(userIdx, level) {
-    const key = `nutri_user_level_${userIdx}`;
-    localStorage.setItem(key, level);
-}
-
-/**
- * 获取某用户的等级详情对象
- */
-function getUserLevelInfo(userIdx) {
-    const level = getUserLevel(userIdx);
-    return USER_LEVELS[level] || USER_LEVELS.free;
-}
-
-/**
- * 获取某用户的保留天数
- * @param {number} userIdx
- * @returns {number} -1 表示永久
- */
-function getRetentionDays(userIdx) {
-    const info = getUserLevelInfo(userIdx);
-    return info.days;
-}
-
-// ============================================
-// localStorage 存储模块（能量补偿 + 打卡）
-// ============================================
-
-/**
- * 获取当前用户的 localStorage key 前缀
- */
-function getStorageKey(base) {
-    return `nutri_${base}_${currentUser}`;
-}
+// 用户等级系统、localStorage 存储工具等已迁移至 js/storage.js
+// 用户等级函数 (getUserLevel/saveUserLevel/getUserLevelInfo/getRetentionDays)
+// 存储函数 (getStorageKey/saveBasicInfo/loadBasicInfo)
+// 均来自 storage.js（在 index.html 中先于 app.js 加载）
 
 // ============================================
 // Supabase 同步辅助（写时自动 sync）
@@ -141,6 +83,22 @@ async function syncDebtQueueToSupabase(queue) {
 }
 
 /**
+ * 同步基本信息到 Supabase（user_settings 表的 basic_info 字段）
+ */
+async function syncBasicInfoToSupabase(data) {
+    try {
+        const userId = await getCurrentAccountId();
+        if (!userId) return;
+        const sb = getSupabase();
+        if (!sb) return;
+        await sb.from('user_settings').upsert({
+            user_id: userId,
+            preferences: { basic_info: data || null }
+        }, { onConflict: 'user_id' });
+    } catch (e) { console.warn('syncBasicInfoToSupabase失败:', e.message); }
+}
+
+/**
  * 从 Supabase 拉取数据覆盖本地 localStorage
  * 登录/刷新时调用，实现跨设备同步
  */
@@ -151,19 +109,26 @@ async function syncAllFromSupabase() {
         const sb = getSupabase();
         if (!sb) return;
 
-        // 1. 同步方案历史（meal_plans 只有 plan_data，不含 actual）
+        // 1. 同步方案历史（合并模式：本地优先，Supabase补缺）
         const { data: plans } = await sb.from('meal_plans')
             .select('plan_date, plan_data')
             .eq('user_id', userId)
             .order('plan_date', { ascending: false });
         if (plans && plans.length > 0) {
-            const history = plans.map(p => ({
+            const localHistory = getMealHistory();
+            // 本地已有方案的日期集合
+            const localDates = new Set(localHistory.filter(h => h.plan).map(h => h.date));
+            // Supabase数据转为history格式
+            const supHistory = plans.map(p => ({
                 date: p.plan_date,
                 plan: p.plan_data,
                 actual: null,
                 status: null
             }));
-            localStorage.setItem(getStorageKey('meal_history'), JSON.stringify(history));
+            // 只补充本地没有的日期（本地已存在的记录不覆盖）
+            const newFromSup = supHistory.filter(h => !localDates.has(h.date));
+            const merged = [...localHistory, ...newFromSup];
+            saveMealHistory(merged);
         }
 
         // 2. 同步打卡记录（含实际摄入数据）
@@ -200,7 +165,14 @@ async function syncAllFromSupabase() {
             localStorage.setItem(getStorageKey('debt'), JSON.stringify(debts[0].queue_data));
         }
 
-        console.log('✅ Supabase 数据同步完成');
+        // 4. 同步基本信息（本地没有才从云端拉）
+        const { data: settings } = await sb.from('user_settings')
+            .select('preferences')
+            .eq('user_id', userId)
+            .single();
+        if (settings?.preferences?.basic_info && !loadBasicInfo()) {
+            saveBasicInfo(settings.preferences.basic_info);
+        }
     } catch (e) {
         console.warn('syncAllFromSupabase失败:', e.message);
     }
@@ -485,7 +457,7 @@ async function loadLowCarbProfiles() {
     const result = await getLowCarbProfiles();
     if (result.success && result.data.length > 0) {
         lowCarbProfiles = result.data;
-        console.log('✅ 低碳水饮食配置已加载:', lowCarbProfiles);
+        console.debug('✅ 低碳水饮食配置已加载:', lowCarbProfiles);
         return true;
     } else {
         console.warn('⚠️ 无法加载低碳水饮食配置，使用默认配置');
@@ -933,195 +905,6 @@ function updateMacroDisplay(ratios) {
 }
 
 // ============================================
-// 核心计算公式
-// ============================================
-
-/**
- * 计算BMI
- * @param {number} heightCm - 身高（厘米）
- * @param {number} weightKg - 体重（公斤）
- * @returns {number} BMI值
- */
-function calculateBMI(heightCm, weightKg) {
-    const heightM = heightCm / 100;
-    return weightKg / (heightM * heightM);
-}
-
-/**
- * 获取BMI状态
- * @param {number} bmi
- * @returns {object} {status, label, className}
- */
-function getBMIStatus(bmi) {
-    if (bmi < 18.5) return { status: '偏瘦', label: 'BMI', className: 'underweight' };
-    if (bmi < 24) return { status: '正常', label: 'BMI', className: 'normal' };
-    if (bmi < 28) return { status: '超重', label: 'BMI', className: 'overweight' };
-    return { status: '肥胖', label: 'BMI', className: 'obese' };
-}
-
-/**
- * 计算标准体重（GX方法）
- * 无论男女均用此公式
- * @param {number} heightCm - 身高（厘米）
- * @returns {number} 标准体重(kg)
- */
-function calculateStdWeight(heightCm) {
-    return heightCm - 105;
-}
-
-/**
- * 计算调节体重（BMI≥28时使用）
- * @param {number} realWeightKg - 真实体重
- * @param {number} stdWeight - 标准体重
- * @returns {number} 调节体重(kg)
- */
-function calculateAdjustedWeight(realWeightKg, stdWeight) {
-    return (realWeightKg + stdWeight) / 2;
-}
-
-/**
- * 计算年龄系数（50岁起每10年降0.1，最低0.4）
- * 50岁=0.9, 60岁=0.8, 70岁=0.7, 80岁=0.6, 90岁=0.5, 100岁=0.4
- * @param {number} age - 年龄（岁）
- * @returns {number} 年龄系数
- */
-function calculateAgeFactor(age) {
-    if (age < 50) return 1.0;
-    // ceil((age - 49) / 10)：50岁→1, 60岁→2, 70岁→3...
-    const decades = Math.ceil((age - 49) / 10);
-    return Math.max(0.4, 1.0 - decades * 0.1);
-}
-
-/**
- * 获取能量系数（按体力活动量）
- * 对应GX方法标准：卧床25 / 轻体力30 / 中体力35 / 重体力40 (kcal/kg)
- * @param {number} activityMultiplier - 活动系数（对应select值）
- * @returns {number} 能量系数(kcal/kg)
- */
-function getEnergyCoefficient(activityMultiplier) {
-    // 与 index.html 中 activity select 选项对应（GX方法四档）：
-    // 1.2=卧床(25) 1.375=轻体力劳动(30) 1.55=中体力劳动(35) 1.725=重体力劳动(40)
-    if (activityMultiplier <= 1.2) return 25;   // 卧床：几乎不活动
-    if (activityMultiplier <= 1.375) return 30; // 轻体力：办公室工作，少量活动
-    if (activityMultiplier <= 1.55) return 35;  // 中体力：有一定职业活动量或规律运动
-    return 40; // 重体力：高强度职业活动或每天大量运动
-}
-
-/**
- * 计算每日总能量（GX方法）
- * @param {number} heightCm - 身高（厘米）
- * @param {number} weightKg - 体重（公斤）
- * @param {number} age - 年龄（岁）
- * @param {number} activityMultiplier - 活动系数
- * @returns {object} { tdee, stdWeight, targetWeight, bmi, ageFactor, energyCoeff, calcDetail }
- */
-function calculateTDEE_XiaMeng(heightCm, weightKg, age, activityMultiplier) {
-    const stdWeight = calculateStdWeight(heightCm);
-    const bmi = calculateBMI(heightCm, weightKg);
-    const ageFactor = calculateAgeFactor(age);
-    const energyCoeff = getEnergyCoefficient(activityMultiplier);
-
-    // 目标体重：BMI≥28用调节体重
-    let targetWeight;
-    let weightType;
-    if (bmi >= 28) {
-        targetWeight = calculateAdjustedWeight(weightKg, stdWeight);
-        weightType = '调节体重';
-    } else {
-        targetWeight = stdWeight;
-        weightType = '标准体重';
-    }
-
-    const tdee = targetWeight * energyCoeff * ageFactor;
-
-    return {
-        tdee: Math.round(tdee),
-        stdWeight,
-        targetWeight: Math.round(targetWeight * 10) / 10,
-        weightType,
-        bmi: Math.round(bmi * 10) / 10,
-        ageFactor,
-        energyCoeff,
-    };
-}
-
-/**
- * 计算基础代谢率（BMR）- Mifflin-St Jeor公式（保留作对比）
- * @param {string} gender - 'male' 或 'female'
- * @param {number} age - 年龄（岁）
- * @param {number} heightCm - 身高（厘米）
- * @param {number} weightKg - 体重（公斤）
- * @returns {number} BMR (kcal/天)
- */
-function calculateBMR(gender, age, heightCm, weightKg) {
-    if (gender === 'male') {
-        return 10 * weightKg + 6.25 * heightCm - 5 * age + 5;
-    } else {
-        return 10 * weightKg + 6.25 * heightCm - 5 * age - 161;
-    }
-}
-
-/**
- * 计算每日总消耗（TDEE）- Mifflin-St Jeor方法（保留作对比）
- * @param {number} bmr - 基础代谢率
- * @param {number} activityMultiplier - 活动系数
- * @returns {number} TDEE (kcal/天)
- */
-function calculateTDEE(bmr, activityMultiplier) {
-    return Math.round(bmr * activityMultiplier);
-}
-
-/**
- * 计算每日营养目标（克数和卡路里）
- * 已考虑食物动力效应：蛋白质吸收率70%，碳水/脂肪吸收率95%
- * @param {number} tdee - 每日总消耗
- * @returns {object} {protein, fat, carb} 各含{g, kcal, g_actual, kcal_actual}
- */
-function calculateDailyMacros(tdee, customRatio) {
-    // 使用传入的比例，或使用默认标准比例
-    const ratio = customRatio || { protein: 15, fat: 30, carb: 55 };
-
-    // 理论值（标签值）
-    const protein_kcal = Math.round(tdee * ratio.protein / 100);
-    const fat_kcal     = Math.round(tdee * ratio.fat    / 100);
-    const carb_kcal    = Math.round(tdee * ratio.carb   / 100);
-
-    // 考虑食物动力效应后的实际吸收量
-    // 蛋白质动力效应=30%，实际吸收70%；碳水/脂肪动力效应=5%，实际吸收95%
-    const PROTEIN_ABSORPTION = 0.70;
-    const CARB_FAT_ABSORPTION = 0.95;
-
-    return {
-        protein: {
-            percent:      ratio.protein,
-            kcal:          protein_kcal,
-            grams:         Math.round(protein_kcal / 4),
-            kcal_actual:   Math.round(protein_kcal * PROTEIN_ABSORPTION),
-            grams_actual:  Math.round(protein_kcal * PROTEIN_ABSORPTION / 4),
-        },
-        fat: {
-            percent:      ratio.fat,
-            kcal:          fat_kcal,
-            grams:         Math.round(fat_kcal / 9),
-            kcal_actual:   Math.round(fat_kcal * CARB_FAT_ABSORPTION),
-            grams_actual:  Math.round(fat_kcal * CARB_FAT_ABSORPTION / 9),
-        },
-        carb: {
-            percent:      ratio.carb,
-            kcal:          carb_kcal,
-            grams:         Math.round(carb_kcal / 4),
-            kcal_actual:   Math.round(carb_kcal * CARB_FAT_ABSORPTION),
-            grams_actual:  Math.round(carb_kcal * CARB_FAT_ABSORPTION / 4),
-        },
-        tef_note: {
-            protein: '蛋白质动力效应=30%，实际吸收70%',
-            carb:     '碳水动力效应=5%，实际吸收95%',
-            fat:      '脂肪动力效应=5%，实际吸收95%',
-        }
-    };
-}
-
-// ============================================
 // UI渲染
 // ============================================
 
@@ -1289,28 +1072,25 @@ function showProfileSelectorInPage(intake) {
         // 第一步：模式选择页
         // ==========================================
         html = `
-        <h3 style="text-align:center;margin-bottom:24px;color:var(--primary);">请选择您的操作模式</h3>
-        <div class="mode-select-grid" style="display:grid;gap:16px;">
-            <div class="mode-select-card ${currentMode === 'newbie' ? 'selected' : ''}"
-                 onclick="enterModeDetail('newbie')"
-                 style="border:2px solid ${currentMode === 'newbie' ? 'var(--primary)' : '#e0e0e0'};border-radius:12px;padding:20px;cursor:pointer;transition:all 0.2s;">
-                <div style="font-size:2rem;text-align:center;margin-bottom:8px;">🌱</div>
-                <h4 style="text-align:center;margin-bottom:8px;">新手模式</h4>
-                <p style="text-align:center;color:#666;font-size:0.9rem;">系统预设，一键搞定<br>从三个推荐方案中选择</p>
+        <h3 class="mode-header">请选择您的操作模式</h3>
+        <div class="mode-select-grid">
+            <div class="mode-card ${currentMode === 'newbie' ? 'mode-card-active' : ''}"
+                 onclick="enterModeDetail('newbie')">
+                <div class="mode-icon">🌱</div>
+                <h4 class="mode-card-title">新手模式</h4>
+                <p class="mode-card-desc">系统预设，一键搞定<br>从三个推荐方案中选择</p>
             </div>
-            <div class="mode-select-card ${currentMode === 'advanced' ? 'selected' : ''}"
-                 onclick="enterModeDetail('advanced')"
-                 style="border:2px solid ${currentMode === 'advanced' ? 'var(--primary)' : '#e0e0e0'};border-radius:12px;padding:20px;cursor:pointer;transition:all 0.2s;">
-                <div style="font-size:2rem;text-align:center;margin-bottom:8px;">⚡</div>
-                <h4 style="text-align:center;margin-bottom:8px;">进阶模式</h4>
-                <p style="text-align:center;color:#666;font-size:0.9rem;">在档位基础上微调碳水<br>适合有明确目标的用户</p>
+            <div class="mode-card ${currentMode === 'advanced' ? 'mode-card-active' : ''}"
+                 onclick="enterModeDetail('advanced')">
+                <div class="mode-icon">⚡</div>
+                <h4 class="mode-card-title">进阶模式</h4>
+                <p class="mode-card-desc">在档位基础上微调碳水<br>适合有明确目标的用户</p>
             </div>
-            <div class="mode-select-card ${currentMode === 'master' ? 'selected' : ''}"
-                 onclick="enterModeDetail('master')"
-                 style="border:2px solid ${currentMode === 'master' ? 'var(--primary)' : '#e0e0e0'};border-radius:12px;padding:20px;cursor:pointer;transition:all 0.2s;">
-                <div style="font-size:2rem;text-align:center;margin-bottom:8px;">🎓</div>
-                <h4 style="text-align:center;margin-bottom:8px;">大师模式</h4>
-                <p style="text-align:center;color:#666;font-size:0.9rem;">三大营养全自定义<br>适合专业用户</p>
+            <div class="mode-card ${currentMode === 'master' ? 'mode-card-active' : ''}"
+                 onclick="enterModeDetail('master')">
+                <div class="mode-icon">🎓</div>
+                <h4 class="mode-card-title">大师模式</h4>
+                <p class="mode-card-desc">三大营养全自定义<br>适合专业用户</p>
             </div>
         </div>
         `;
@@ -1327,12 +1107,10 @@ function showProfileSelectorInPage(intake) {
 
         html = `
         <div style="margin-bottom:16px;">
-            <button onclick="backToModeSelect()" style="display:inline-flex;align-items:center;gap:4px;padding:8px 16px;border-radius:8px;background:#f0f0f0;border:none;cursor:pointer;font-size:0.9rem;color:#555;">
-                ← 返回模式选择
-            </button>
+            <button class="back-btn" onclick="backToModeSelect()">← 返回模式选择</button>
         </div>
         <div class="ratio-mode-selector">
-            <h3 style="text-align:center;color:var(--primary);margin-bottom:4px;">${modeTitles[currentMode]}</h3>
+            <h3 class="mode-header" style="margin-bottom:4px;">${modeTitles[currentMode]}</h3>
             <p class="mode-desc" style="text-align:center;">${modeDescs[currentMode]}</p>
         </div>
         `;
@@ -1392,9 +1170,9 @@ function showProfileSelectorInPage(intake) {
                 </div>
                 <div class="slider-range">范围：${carbMin}% ~ ${carbMax}%</div>
             </div>
-            <div class="fixed-ratios" style="display:flex;gap:16px;margin-bottom:16px;font-size:0.9rem;color:#666;">
-                <div>🥩 蛋白质（固定）<strong style="color:#333">${profile['蛋白质比例']}%</strong></div>
-                <div>🥑 脂肪（自动）<strong style="color:#333" id="pageAdvancedFatValue">${fatValue}%</strong></div>
+            <div class="fixed-ratios">
+                <div>🥩 蛋白质（固定）<strong class="fixed-ratio-value">${profile['蛋白质比例']}%</strong></div>
+                <div>🥑 脂肪（自动）<strong class="fixed-ratio-value" id="pageAdvancedFatValue">${fatValue}%</strong></div>
             </div>
             <button class="btn-calculate" onclick="confirmCustomProfile()">✅ 确认方案</button>
             `;
@@ -1403,7 +1181,7 @@ function showProfileSelectorInPage(intake) {
         // 大师模式：三个滑动条
         if (currentMode === 'master') {
             html += `
-            <div class="master-controls" style="margin-bottom:12px;">
+            <div class="master-controls control-group">
                 <div class="slider-control">
                     <label>🍚 碳水化合物：</label>
                     <div class="slider-container">
@@ -1557,12 +1335,12 @@ function renderPageMasterRatioSummary() {
     const isValid = Math.abs(total - 100) < 0.1;
 
     return `
-        <div class="ratio-bar" style="height:20px;border-radius:8px;overflow:hidden;display:flex;margin-bottom:8px;">
-            <div style="width:${ratios.protein}%;background:#e74c3c;" title="蛋白质"></div>
-            <div style="width:${ratios.fat}%;background:#f39c12;" title="脂肪"></div>
-            <div style="width:${ratios.carb}%;background:#3498db;" title="碳水"></div>
+        <div class="ratio-bar-base">
+            <div class="ratio-bar-protein" style="width:${ratios.protein}%;" title="蛋白质"></div>
+            <div class="ratio-bar-fat" style="width:${ratios.fat}%;" title="脂肪"></div>
+            <div class="ratio-bar-carb" style="width:${ratios.carb}%;" title="碳水"></div>
         </div>
-        <div style="display:flex;gap:12px;justify-content:center;font-size:0.85rem;color:#666;">
+        <div class="ratio-bar-label">
             <span>🥩 蛋白 ${ratios.protein}%</span>
             <span>🥑 脂肪 ${ratios.fat}%</span>
             <span>🍚 碳水 ${ratios.carb}%</span>
@@ -1777,14 +1555,14 @@ function renderResultsInPage(userData, xiaResult, bmr, macros, compensationMsg) 
 
     // 补偿信息显示（如果有）
     const compHtml = compensationMsg ? `
-        <div style="margin:8px 0;padding:8px 12px;background:#fff3cd;border-radius:8px;font-size:0.85rem;color:#856404;">
+        <div class="msg-warning">
             ${compensationMsg}
         </div>
     ` : '';
 
     container.innerHTML = `
         <div style="margin-bottom:16px;">
-            <button class="btn-secondary" onclick="backToProfileSelector()" style="display:inline-flex;align-items:center;gap:4px;padding:8px 16px;border-radius:8px;background:#f0f0f0;border:none;cursor:pointer;font-size:0.9rem;color:#555;">
+            <button class="btn-secondary back-btn" onclick="backToProfileSelector()">
                 ← 返回修改方案
             </button>
         </div>
@@ -1898,6 +1676,9 @@ function showCheckInPopup(dateStr, historyRecord, mode) {
     overlay.addEventListener('click', (e) => {
         if (e.target === overlay) closeCheckInPopup();
     });
+
+    // 初始化计算已勾选食物的营养值
+    setTimeout(() => updateCheckinSummary(), 50);
 }
 
 /**
@@ -1914,7 +1695,7 @@ function buildCheckInHTML(dateStr, plan, mode) {
     const weekDay = weekDays[d.getDay()];
     const isModify = (mode === 'modify');
     const headerIcon = isModify ? '✏️' : '📋';
-    const headerText = isModify ? `修改打卡（${dateLabel} 周${weekDay}）` : `昨天（${dateLabel} 周${weekDay}）吃了吗？`;
+    const headerText = isModify ? `修改打卡（${dateLabel} ${weekDay}）` : `昨天（${dateLabel} ${weekDay}）吃了吗？`;
 
     // 四餐勾选区块
     const meals = [
@@ -1950,7 +1731,7 @@ function buildCheckInHTML(dateStr, plan, mode) {
                     <div class="checkin-add-food" data-meal="${meal.key}">
                         + 添加食物
                     </div>
-                    <div class="checkin-search-area" id="checkinSearch_${meal.key}" style="display:none;">
+                    <div class="checkin-search-area" id="checkinSearch_${meal.key}">
                         <input type="text" class="checkin-search-input" placeholder="搜索食物名..."
                             data-meal="${meal.key}">
                         <div class="checkin-search-results" id="checkinResults_${meal.key}"></div>
@@ -1971,21 +1752,22 @@ function buildCheckInHTML(dateStr, plan, mode) {
             ${mealsHtml}
         </div>
         <div class="checkin-summary" id="checkinSummary">
+            <div class="checkin-summary-hint">📊 实际摄入（自动计算，勾选/取消食物可调整）</div>
             <div class="checkin-summary-row">
                 <span>能量</span>
-                <span id="checkinEnergy" class="checkin-summary-val">--</span>
+                <span id="checkinEnergy" class="checkin-summary-val">-- kcal</span>
             </div>
             <div class="checkin-summary-row">
                 <span>蛋白质</span>
-                <span id="checkinProtein" class="checkin-summary-val">--</span>
+                <span id="checkinProtein" class="checkin-summary-val">-- g</span>
             </div>
             <div class="checkin-summary-row">
                 <span>碳水</span>
-                <span id="checkinCarb" class="checkin-summary-val">--</span>
+                <span id="checkinCarb" class="checkin-summary-val">-- g</span>
             </div>
             <div class="checkin-summary-row">
                 <span>脂肪</span>
-                <span id="checkinFat" class="checkin-summary-val">--</span>
+                <span id="checkinFat" class="checkin-summary-val">-- g</span>
             </div>
         </div>
         <div class="checkin-actions">
@@ -2371,32 +2153,6 @@ function updateMacroCircle(type, percent) {
 }
 
 /**
- * 计算食物换算（根据营养素克数推荐食物）
- */
-function calculateFoodExchange(proteinGrams, fatGrams, carbGrams) {
-    return {
-        proteinSources: [
-            { icon: '🥩', name: '瘦肉（猪/牛/羊）', grams: Math.round(proteinGrams * 2) },
-            { icon: '🐟', name: '鱼肉', grams: Math.round(proteinGrams * 1.5) },
-            { icon: '🥚', name: '鸡蛋', grams: Math.round(proteinGrams * 1.2) },
-            { icon: '🦐', name: '虾/贝类', grams: Math.round(proteinGrams * 1.8) },
-        ],
-        fatSources: [
-            { icon: '🥑', name: '牛油果', grams: Math.round(fatGrams * 1.5) },
-            { icon: '🫒', name: '橄榄油', grams: Math.round(fatGrams * 1.1) },
-            { icon: '🥜', name: '坚果', grams: Math.round(fatGrams * 0.6) },
-            { icon: '🐟', name: '深海鱼', grams: Math.round(fatGrams * 1.2) },
-        ],
-        carbSources: [
-            { icon: '🥬', name: '绿叶蔬菜', grams: Math.round(carbGrams * 5) },
-            { icon: '🥦', name: '西兰花', grams: Math.round(carbGrams * 3) },
-            { icon: '🍄', name: '菌菇类', grams: Math.round(carbGrams * 2.5) },
-            { icon: '🍚', name: '糙米/杂粮', grams: Math.round(carbGrams * 1.2) },
-        ],
-    };
-}
-
-/**
  * 渲染食物换算
  */
 function renderFoodExchange(macros, containerId = 'foodExchange') {
@@ -2597,25 +2353,6 @@ function hideResults() {
 // 矿物质&维生素达标率
 // ============================================
 
-/** 年龄→年龄组映射 */
-function getAgeGroup(age) {
-    if (age < 1) return '0岁~';
-    if (age < 4) return '1岁~';
-    if (age < 7) return '4岁~';
-    if (age < 11) return '7岁~';
-    if (age < 14) return '11岁~';
-    if (age < 18) return '14岁~';
-    if (age < 50) return '18岁~';
-    if (age < 65) return '50岁~';
-    if (age < 80) return '65岁~';
-    return '80岁~';
-}
-
-/** 性别映射 */
-function getGenderLabel(gender) {
-    return gender === 'male' ? '男' : '女';
-}
-
 /** 从Supabase查询推荐摄入量 */
 async function getRDI(age, gender) {
     try {
@@ -2814,31 +2551,12 @@ function addUser() {
 let currentFoodCategory = null;
 
 /**
- * 更新导航按钮状态
- */
-function updateNavButtons(activeSection) {
-    const sections = ['calculatorSection', 'surveySection', 'foodDbSection'];
-    sections.forEach(section => {
-        const btn = document.querySelector(`[onclick="show${section.charAt(0).toUpperCase() + section.slice(1).replace('Section', '')}()"]`);
-        if (btn) {
-            btn.classList.toggle('active', section === activeSection);
-        }
-    });
-}
-
-/**
  * 显示食物数据库页面
  */
 function showFoodDatabase() {
-    // 隐藏其他section
-    document.getElementById('authSection').style.display = 'none';
-    document.getElementById('calculatorSection').style.display = 'none';
-    document.getElementById('surveySection').style.display = 'none';
-    document.getElementById('resultPageSection').style.display = 'none';
-    document.getElementById('foodDbSection').style.display = 'block';
-
-    // 更新导航按钮状态
-    updateNavButtons('foodDbSection');
+    renderNav('nav-foodDbSection', 'foodDb');
+    hideAllSections();
+    $show('foodDbSection');
 
     // 初始化食物库
     initFoodDatabase();
@@ -2871,41 +2589,6 @@ function setFoodCategory(cat) {
         btn.classList.toggle('active', btn.textContent === (cat || '全部'));
     });
     renderFoodDbGrid();
-}
-
-/**
- * 获取脂肪酸比例状态
- */
-function getOmegaRatioInfo(omega3, omega6) {
-    if (!omega3 || !omega6 || omega3 === 0) {
-        return {
-            className: 'ratio-warning',
-            text: '—',
-            suggestion: '建议增加omega-3来源（深海鱼/亚麻籽油）'
-        };
-    }
-
-    const ratio = omega6 / omega3;
-
-    if (ratio >= 4 && ratio <= 6) {
-        return {
-            className: 'ratio-good',
-            text: `1:${ratio.toFixed(1)}`,
-            suggestion: '✓ 比例理想'
-        };
-    } else if (ratio > 6) {
-        return {
-            className: 'ratio-warning',
-            text: `1:${ratio.toFixed(1)}`,
-            suggestion: '⚠️ omega-6偏高，减少植物油，增加深海鱼'
-        };
-    } else {
-        return {
-            className: 'ratio-good',
-            text: `1:${ratio.toFixed(1)}`,
-            suggestion: '✓ omega-3充足，注意总脂肪摄入'
-        };
-    }
 }
 
 /**
@@ -3081,7 +2764,7 @@ function renderMVBox(food, type) {
 
     return `
         <div class="nutri-box nutri-box-mv ${type}" tabindex="0">
-            <div class="nutri-box-value">${isMinerals ? '🪨' : '💊'}</div>
+            <div class="nutri-box-value">${isMinerals ? '🧂' : '💊'}</div>
             <div class="nutri-box-label">${isMinerals ? '矿物质' : '维生素'}<span class="mv-count">${hasCount}</span></div>
             <div class="nutri-box-mv-popup">
                 <div class="mv-popup-title">${isMinerals ? '矿物质（每100g）' : '维生素（每100g）'}</div>
@@ -3097,12 +2780,120 @@ function renderMVBox(food, type) {
 // 主计算函数
 // ============================================
 
-function calculate() {
-    const formData = getFormData();
+/**
+ * 在计算器页面显示已保存的基本信息摘要
+ */
+function renderBasicInfoSummary() {
+    const el = document.getElementById('basicInfoSummary');
+    if (!el) return;
+    const info = loadBasicInfo();
+    if (!info) {
+        el.innerHTML = `<p style="color:var(--text-light);">👤 暂未设置基本信息。<br>
+            <a href="#" onclick="showSettings();return false;" style="color:var(--primary);">点击这里填写 →</a>
+        </p>`;
+        // 不填回编辑表单
+        return;
+    }
+    const genderMap = { male: '男', female: '女' };
+    const activityMap = { '1.2': '卧床', '1.375': '轻体力', '1.55': '中体力', '1.725': '重体力' };
+    el.innerHTML = `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:0.9rem;">
+            <span><strong>姓名：</strong>${info.name || '未填'}</span>
+            <span><strong>性别：</strong>${genderMap[info.gender] || '未填'}</span>
+            <span><strong>年龄：</strong>${info.age || '-'} 岁</span>
+            <span><strong>身高：</strong>${info.height || '-'} cm</span>
+            <span><strong>体重：</strong>${info.weight || '-'} kg</span>
+            <span><strong>活动水平：</strong>${activityMap[String(info.activity)] || '未填'}</span>
+        </div>
+    `;
 
-    // 基础验证
-    if (!formData.height || !formData.weight || !formData.age) {
-        showToast('请填写完整的身高、体重、年龄信息', 'error');
+    // 回填内联编辑表单
+    const editIdMap = {
+        calcEditName: 'name', calcEditGender: 'gender', calcEditAge: 'age',
+        calcEditHeight: 'height', calcEditWeight: 'weight', calcEditActivity: 'activity'
+    };
+    for (const [inputId, field] of Object.entries(editIdMap)) {
+        const el2 = document.getElementById(inputId);
+        if (el2 && info[field] !== undefined) el2.value = info[field];
+    }
+}
+
+/**
+ * 切换计算器页面的内联编辑模式
+ */
+function toggleCalcEdit() {
+    const form = document.getElementById('calcEditForm');
+    const summary = document.getElementById('basicInfoSummary');
+    const btn = document.getElementById('calcEditBtn');
+    if (!form) return;
+    const isHidden = form.style.display === 'none' || !form.style.display;
+    form.style.display = isHidden ? 'block' : 'none';
+    if (summary) summary.style.display = isHidden ? 'none' : 'block';
+    if (btn) btn.textContent = isHidden ? '🔽 收起' : '✏️ 修改信息';
+}
+
+/**
+ * 取消计算器页面的内联编辑
+ */
+function cancelCalcEdit() {
+    const form = document.getElementById('calcEditForm');
+    const summary = document.getElementById('basicInfoSummary');
+    const btn = document.getElementById('calcEditBtn');
+    if (form) form.style.display = 'none';
+    if (summary) summary.style.display = 'block';
+    if (btn) btn.textContent = '✏️ 修改信息';
+    const msg = document.getElementById('calcEditMsg');
+    if (msg) msg.textContent = '';
+}
+
+/**
+ * 保存计算器页面的内联编辑
+ */
+function saveCalcBasicInfo() {
+    const data = {
+        name: document.getElementById('calcEditName')?.value || '',
+        gender: document.getElementById('calcEditGender')?.value || 'male',
+        age: parseInt(document.getElementById('calcEditAge')?.value) || 30,
+        height: parseFloat(document.getElementById('calcEditHeight')?.value) || 170,
+        weight: parseFloat(document.getElementById('calcEditWeight')?.value) || 70,
+        activity: parseFloat(document.getElementById('calcEditActivity')?.value) || 1.55
+    };
+
+    if (!data.height || !data.weight || !data.age) {
+        const msg = document.getElementById('calcEditMsg');
+        if (msg) msg.innerHTML = '<span class="msg-error">⚠️ 请填写完整身高、体重、年龄</span>';
+        return;
+    }
+
+    saveBasicInfo(data);
+    if (typeof syncBasicInfoToSupabase === 'function') {
+        syncBasicInfoToSupabase(data);
+    }
+
+    const msg = document.getElementById('calcEditMsg');
+    if (msg) msg.innerHTML = '<span class="msg-success">✅ 已保存</span>';
+
+    // 自动收起 + 刷新摘要和计算结果
+    setTimeout(() => {
+        cancelCalcEdit();
+        renderBasicInfoSummary();
+        // 如果已计算过，自动重算
+        const resultSection = document.getElementById('resultSection');
+        if (resultSection && resultSection.style.display !== 'none') {
+            calculate();
+        }
+    }, 800);
+}
+
+function calculate() {
+    // 优先从 localStorage 读取基本信息
+    let formData = loadBasicInfo();
+
+    // 没有基本信息 → 引导去设置页
+    if (!formData || !formData.height || !formData.weight || !formData.age) {
+        showToast('请先在设置页填写基本信息 🚀', 'info');
+        // 跳转到设置页
+        if (typeof showSettings === 'function') showSettings();
         return;
     }
 
@@ -3117,8 +2908,415 @@ function calculate() {
             formData.activity
         )
     };
-    // 跳转到问卷调查
-    showSurvey();
+
+    // 检查是否有问卷数据
+    const email = (typeof surveyState !== 'undefined' && surveyState.currentUser) || '';
+    const surveyKey = 'survey_' + email;
+    let intake = null;
+    try {
+        const surveyRaw = localStorage.getItem(surveyKey);
+        if (surveyRaw) {
+            const surveyData = JSON.parse(surveyRaw);
+            intake = surveyData.intake || null;
+        }
+    } catch {}
+
+    // 跳转到方案生成页（带或不带问卷数据）
+    if (typeof showResultPage === 'function') {
+        showResultPage(intake);
+    }
+}
+
+// ============================================
+// 设置页面
+// ============================================
+
+/**
+ * 渲染设置页面（账号信息 + 等级信息）
+ */
+function renderSettingsPage() {
+    const info = loadBasicInfo();
+    const settingsBasicMsg = document.getElementById('settingsBasicMsg');
+
+    // 基本信息 — 回填表单字段（供编辑用）
+    if (info) {
+        const idMap = {
+            settingsName: 'name',
+            settingsGender: 'gender',
+            settingsAge: 'age',
+            settingsHeight: 'height',
+            settingsWeight: 'weight',
+            settingsActivity: 'activity'
+        };
+        for (const [inputId, field] of Object.entries(idMap)) {
+            const el = document.getElementById(inputId);
+            if (el && info[field] !== undefined) el.value = info[field];
+        }
+    }
+    if (settingsBasicMsg) settingsBasicMsg.textContent = '';
+
+    // === 基本信息摘要 ===
+    const summaryEl = document.getElementById('settingsBasicSummary');
+    if (summaryEl) {
+        if (info) {
+            const genderLabel = info.gender === 'female' ? '女' : '男';
+            const activityLabels = {
+                '1.2': '卧床', '1.375': '轻体力', '1.55': '中体力', '1.725': '重体力'
+            };
+            const actLabel = activityLabels[String(info.activity)] || `活动系数${info.activity}`;
+            summaryEl.innerHTML = `
+                <div class="settings-summary-row">
+                    <span class="settings-summary-item"><span class="label">姓名</span> <span class="value">${info.name || '-'}</span></span>
+                    <span class="settings-summary-item"><span class="label">性别</span> <span class="value">${genderLabel}</span></span>
+                    <span class="settings-summary-item"><span class="label">年龄</span> <span class="value">${info.age || '-'} 岁</span></span>
+                    <span class="settings-summary-item"><span class="label">身高</span> <span class="value">${info.height || '-'} cm</span></span>
+                    <span class="settings-summary-item"><span class="label">体重</span> <span class="value">${info.weight || '-'} kg</span></span>
+                    <span class="settings-summary-item"><span class="label">活动水平</span> <span class="value">${actLabel}</span></span>
+                </div>
+            `;
+        } else {
+            summaryEl.innerHTML = '<p style="color:var(--text-light);">暂无数据，请点击「编辑」填写。</p>';
+        }
+    }
+
+    // 账号信息
+    const email = (typeof surveyState !== 'undefined' && surveyState.currentUser) || '未知';
+    const accountEl = document.getElementById('settingsAccountInfo');
+    if (accountEl) {
+        accountEl.innerHTML = `
+            <div class="settings-account-card">
+                <div class="settings-account-avatar">${email ? email[0].toUpperCase() : '?'}</div>
+                <div class="settings-account-detail">
+                    <div class="email">${email}</div>
+                    <div class="hint">当前登录账号</div>
+                </div>
+            </div>
+        `;
+    }
+
+    // 等级信息
+    const levelInfo = getUserLevelInfo(currentUser);
+    const levelEl = document.getElementById('settingsLevelInfo');
+    if (levelEl) {
+        const daysText = levelInfo.days < 0 ? '无限（永久不删）' : `${levelInfo.days} 天`;
+        levelEl.innerHTML = `
+            <div class="settings-level-info">
+                <div class="settings-level-icon">${levelInfo.icon}</div>
+                <div class="settings-level-text">
+                    <div class="level-name">${levelInfo.icon} ${levelInfo.label} 用户</div>
+                    <div class="level-detail">数据保留期限：${daysText}</div>
+                    <div class="level-detail" style="margin-top:4px;font-size:0.73rem;">等级由管理员在后台设置</div>
+                </div>
+            </div>
+        `;
+    }
+
+    // === 饮食问卷结果 ===
+    renderSurveyResultsInSettings();
+
+    // 清空密码输入框和提示
+    ['settingsCurPwd', 'settingsNewPwd', 'settingsConfirmPwd'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+    const msgEl = document.getElementById('settingsPwdMsg');
+    if (msgEl) msgEl.textContent = '';
+}
+
+/**
+ * 在设置页渲染饮食问卷结果
+ */
+function renderSurveyResultsInSettings() {
+    const container = document.getElementById('settingsSurveyResults');
+    if (!container) return;
+
+    const username = (typeof surveyState !== 'undefined' && surveyState.currentUser) || '';
+    if (!username) {
+        container.innerHTML = '<p style="color:var(--text-light);">请先登录。</p>';
+        return;
+    }
+
+    const surveyData = loadSurveyData(username);
+    if (!surveyData || !surveyData.foodFreq || Object.keys(surveyData.foodFreq).length === 0) {
+        container.innerHTML = `
+            <p style="color:var(--text-light);">暂无填写记录。</p>
+            <div style="margin-top:10px;">
+                <button class="btn-primary" onclick="showSurvey()">📋 填写饮食问卷</button>
+            </div>
+        `;
+        return;
+    }
+
+    // 有时间戳则显示提交日期
+    let headerHtml = '';
+    if (surveyData.timestamp) {
+        const d = new Date(surveyData.timestamp);
+        const dateStr = d.getFullYear() + '年' + (d.getMonth()+1) + '月' + d.getDate() + '日';
+        headerHtml = `<p style="font-size:0.85rem;color:var(--text-light);margin-bottom:8px;">📅 最近提交：${dateStr}</p>`;
+    }
+
+    // 每日摄入分析
+    let intakeHtml = '';
+    if (surveyData.intake) {
+        const i = surveyData.intake;
+        intakeHtml = `
+            <div class="survey-result-section">
+                <h4>📊 每日摄入分析</h4>
+                <table class="survey-result-table">
+                    <tr><th>营养素</th><th>实际摄入</th></tr>
+                    <tr><td>热量</td><td>${i.kcal || 0} kcal</td></tr>
+                    <tr><td>蛋白质</td><td>${i.protein || 0} g</td></tr>
+                    <tr><td>脂肪</td><td>${i.fat || 0} g</td></tr>
+                    <tr><td>碳水</td><td>${i.carb || 0} g</td></tr>
+                </table>
+            </div>
+        `;
+    }
+
+    // 食物频率 — 只显示"吃"的项
+    let freqHtml = '';
+    const freqItems = surveyData.foodFreq;
+    const freqNames = {};
+    const freqCategories = {};
+    if (typeof FOOD_FREQ_ITEMS !== 'undefined') {
+        FOOD_FREQ_ITEMS.forEach(item => {
+            freqNames[item.id] = item.icon + ' ' + item.name;
+            freqCategories[item.id] = item.category;
+        });
+    }
+
+    let freqLines = [];
+    for (const [id, data] of Object.entries(freqItems)) {
+        if (data.eat !== 'yes') continue;
+        const name = freqNames[id] || id;
+        const freqText = data.freqNum && data.freqUnit ? `${data.freqNum}次/${data.freqUnit === 'day' ? '日' : data.freqUnit === 'week' ? '周' : '月'}` : '';
+        const amountText = data.amount ? `${data.amount}g/次` : '';
+        const detail = [freqText, amountText].filter(Boolean).join('，');
+        freqLines.push(`<span class="survey-result-item">${name}${detail ? ' — ' + detail : ''}</span>`);
+    }
+
+    if (freqLines.length > 0) {
+        freqHtml = `
+            <div class="survey-result-section">
+                <h4>🍽️ 食物频率（吃）</h4>
+                <div class="survey-result-grid">${freqLines.join('')}</div>
+            </div>
+        `;
+    }
+
+    // 其他习惯
+    let habitHtml = '';
+    const habitData = surveyData.otherHabits || {};
+    const habitNames = {};
+    if (typeof OTHER_HABITS_ITEMS !== 'undefined') {
+        OTHER_HABITS_ITEMS.forEach(item => {
+            habitNames[item.id] = item.icon + ' ' + item.name;
+        });
+    }
+
+    let habitLines = [];
+    for (const [id, data] of Object.entries(habitData)) {
+        if (data.freqUnit === 'none' || !data.freqNum) continue;
+        const name = habitNames[id] || id;
+        const detail = `${data.freqNum}次/${data.freqUnit === 'day' ? '日' : data.freqUnit === 'week' ? '周' : '月'}`;
+        habitLines.push(`<span class="survey-result-item">${name} — ${detail}</span>`);
+    }
+
+    if (habitLines.length > 0) {
+        habitHtml = `
+            <div class="survey-result-section">
+                <h4>🏷️ 其他习惯</h4>
+                <div class="survey-result-grid">${habitLines.join('')}</div>
+            </div>
+        `;
+    }
+
+    // 口味程度
+    const tasteLabels = { none: '不', mild: '适中', heavy: '较重', very_heavy: '非常重' };
+    const tasteText = tasteLabels[surveyData.tasteLevel] || surveyData.tasteLevel || '未选择';
+    const tasteHtml = `
+        <div class="survey-result-section">
+            <h4>🌶️ 口味程度</h4>
+            <p style="font-size:0.9rem;">${tasteText}</p>
+        </div>
+    `;
+
+    container.innerHTML = `
+        ${headerHtml}
+        ${intakeHtml}
+        ${freqHtml}
+        ${habitHtml}
+        ${tasteHtml}
+        <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;">
+            <button class="btn-primary" onclick="showSurvey()">📋 重新填写问卷</button>
+        </div>
+    `;
+}
+
+/**
+ * 切换设置页折叠卡片（基本信息 / 密码）
+ */
+function toggleSettingsEdit(type) {
+    if (type === 'basicInfo') {
+        const form = document.getElementById('settingsBasicForm');
+        const summary = document.getElementById('settingsBasicSummary');
+        const btn = document.getElementById('settingsBasicEditBtn');
+        if (!form) return;
+        const isHidden = form.style.display === 'none' || !form.style.display;
+        if (isHidden) {
+            form.style.display = 'block';
+            form.style.opacity = '0';
+            form.style.transform = 'translateY(-8px)';
+            requestAnimationFrame(() => {
+                form.style.transition = 'opacity 0.2s ease, transform 0.2s ease';
+                form.style.opacity = '1';
+                form.style.transform = 'translateY(0)';
+            });
+            if (summary) summary.style.display = 'none';
+            if (btn) btn.textContent = '✖ 收起';
+        } else {
+            form.style.opacity = '0';
+            form.style.transform = 'translateY(-8px)';
+            setTimeout(() => { form.style.display = 'none'; }, 150);
+            if (summary) summary.style.display = 'block';
+            if (btn) btn.textContent = '✏️ 编辑';
+        }
+    } else if (type === 'password') {
+        const form = document.getElementById('settingsPwdForm');
+        const btn = document.getElementById('settingsPwdEditBtn');
+        if (!form) return;
+        const isHidden = form.style.display === 'none' || !form.style.display;
+        if (isHidden) {
+            form.style.display = 'block';
+            form.style.opacity = '0';
+            form.style.transform = 'translateY(-8px)';
+            requestAnimationFrame(() => {
+                form.style.transition = 'opacity 0.2s ease, transform 0.2s ease';
+                form.style.opacity = '1';
+                form.style.transform = 'translateY(0)';
+            });
+            if (btn) btn.textContent = '✖ 收起';
+        } else {
+            form.style.opacity = '0';
+            form.style.transform = 'translateY(-8px)';
+            setTimeout(() => { form.style.display = 'none'; }, 150);
+            if (btn) btn.textContent = '🔑 修改';
+        }
+    }
+}
+
+/**
+ * 取消编辑设置页折叠卡片
+ */
+function cancelSettingsEdit(type) {
+    if (type === 'basicInfo') {
+        const form = document.getElementById('settingsBasicForm');
+        const summary = document.getElementById('settingsBasicSummary');
+        const btn = document.getElementById('settingsBasicEditBtn');
+        if (form) {
+            form.style.transition = 'opacity 0.15s ease, transform 0.15s ease';
+            form.style.opacity = '0';
+            form.style.transform = 'translateY(-8px)';
+            setTimeout(() => { form.style.display = 'none'; }, 120);
+        }
+        if (summary) summary.style.display = 'block';
+        if (btn) btn.textContent = '✏️ 编辑';
+        const msg = document.getElementById('settingsBasicMsg');
+        if (msg) msg.textContent = '';
+    } else if (type === 'password') {
+        const form = document.getElementById('settingsPwdForm');
+        const btn = document.getElementById('settingsPwdEditBtn');
+        if (form) {
+            form.style.transition = 'opacity 0.15s ease, transform 0.15s ease';
+            form.style.opacity = '0';
+            form.style.transform = 'translateY(-8px)';
+            setTimeout(() => { form.style.display = 'none'; }, 120);
+        }
+        if (btn) btn.textContent = '🔑 修改';
+        // 清空密码框
+        ['settingsCurPwd', 'settingsNewPwd', 'settingsConfirmPwd'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.value = '';
+        });
+        const msg = document.getElementById('settingsPwdMsg');
+        if (msg) msg.textContent = '';
+    }
+}
+
+/**
+ * 修改密码按钮处理
+ */
+async function changeUserPassword() {
+    const curPwd = document.getElementById('settingsCurPwd')?.value || '';
+    const newPwd = document.getElementById('settingsNewPwd')?.value || '';
+    const confirmPwd = document.getElementById('settingsConfirmPwd')?.value || '';
+    const msgEl = document.getElementById('settingsPwdMsg');
+
+    if (!curPwd || !newPwd || !confirmPwd) {
+        if (msgEl) { msgEl.innerHTML = '<span class="msg-error">⚠️ 请填写所有密码字段</span>'; }
+        return;
+    }
+    if (newPwd.length < 6) {
+        if (msgEl) { msgEl.innerHTML = '<span class="msg-error">⚠️ 新密码至少6位</span>'; }
+        return;
+    }
+    if (newPwd !== confirmPwd) {
+        if (msgEl) { msgEl.innerHTML = '<span class="msg-error">⚠️ 两次密码输入不一致</span>'; }
+        return;
+    }
+
+    if (msgEl) { msgEl.innerHTML = '<span class="msg-loading">⏳ 修改中...</span>'; }
+
+    const result = await changePassword(newPwd);
+    if (result.success) {
+        if (msgEl) { msgEl.innerHTML = '<span class="msg-success">✅ 密码修改成功</span>'; }
+        // 清空密码框
+        ['settingsCurPwd', 'settingsNewPwd', 'settingsConfirmPwd'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.value = '';
+        });
+        // 自动收起密码表单
+        setTimeout(() => {
+            cancelSettingsEdit('password');
+        }, 1000);
+    } else {
+        if (msgEl) { msgEl.innerHTML = `<span class="msg-error">❌ 修改失败：${result.error}</span>`; }
+    }
+}
+
+/**
+ * 保存设置页的基本信息 → localStorage + Supabase
+ */
+function saveSettingsBasicInfo() {
+    const data = {
+        name: document.getElementById('settingsName')?.value || '',
+        gender: document.getElementById('settingsGender')?.value || 'male',
+        age: parseInt(document.getElementById('settingsAge')?.value) || 30,
+        height: parseFloat(document.getElementById('settingsHeight')?.value) || 170,
+        weight: parseFloat(document.getElementById('settingsWeight')?.value) || 70,
+        activity: parseFloat(document.getElementById('settingsActivity')?.value) || 1.55
+    };
+
+    if (!data.height || !data.weight || !data.age) {
+        const msg = document.getElementById('settingsBasicMsg');
+        if (msg) msg.innerHTML = '<span class="msg-error">⚠️ 请填写完整身高、体重、年龄</span>';
+        return;
+    }
+
+    saveBasicInfo(data);
+    // 同步到 Supabase（如果已登录）
+    if (typeof syncBasicInfoToSupabase === 'function') {
+        syncBasicInfoToSupabase(data);
+    }
+
+    const msg = document.getElementById('settingsBasicMsg');
+    if (msg) msg.innerHTML = '<span class="msg-success">✅ 已保存</span>';
+
+    // 自动收起编辑表单，刷新摘要
+    setTimeout(() => {
+        cancelSettingsEdit('basicInfo');
+        renderSettingsPage();
+    }, 800);
 }
 
 // ============================================

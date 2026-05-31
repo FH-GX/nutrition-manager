@@ -47,11 +47,11 @@ function renderCalendarPage() {
             </div>
             ${renderCalendarGrid()}
             <div class="calendar-legend">
-                <span><span class="legend-dot" style="background:#e8f5e9;"></span> 完成</span>
-                <span><span class="legend-dot" style="background:#fff3e0;"></span> 超额</span>
-                <span><span class="legend-dot" style="background:#ffebee;"></span> 未达标</span>
-                <span><span class="legend-dot" style="background:#fff;border:1px solid #e0e0e0;"></span> 未打卡</span>
-                <span><span style="display:inline-block;width:6px;height:6px;background:#4a90d9;border-radius:50%;"></span> 今天</span>
+                <span><span class="legend-dot legend-dot-ok"></span> 完成</span>
+                <span><span class="legend-dot legend-dot-over"></span> 超额</span>
+                <span><span class="legend-dot legend-dot-under"></span> 未达标</span>
+                <span><span class="legend-dot legend-dot-none"></span> 未打卡</span>
+                <span><span class="today-indicator"></span> 今天</span>
             </div>
             <hr class="calendar-divider">
             <div id="calendarDayDetail">
@@ -193,7 +193,7 @@ function showMonthPicker() {
                 <div class="month-picker-header">
                     <div class="month-picker-year-nav">
                         <button class="month-picker-year-btn" onclick="pickerChangeYear(-1)">◀</button>
-                        <span class="month-picker-year" id="pickerYearLabel" onclick="showYearPicker()" style="cursor:pointer;">${pickerYear}年</span>
+                        <span class="month-picker-year month-year-click" id="pickerYearLabel" onclick="showYearPicker()">${pickerYear}年</span>
                         <button class="month-picker-year-btn" onclick="pickerChangeYear(1)">▶</button>
                     </div>
                 </div>
@@ -455,14 +455,14 @@ function renderDayDetail(dateStr) {
             if (actual.customFoods && actual.customFoods.length > 0) {
                 actual.customFoods.forEach(f => {
                     if (f.name && f.grams) {
-                        html += `<div style="color:#e65100;">+ ${f.name}${f.grams}g（额外）</div>`;
+                        html += `<div class="extra-food">+ ${f.name}${f.grams}g（额外）</div>`;
                     }
                 });
             }
             html += '</div>';
         } else {
             html += `<div class="history-card-body">
-                <span style="color:#e65100;">总计 ${Math.round(actualEnergy)} kcal</span>
+                <span class="extra-food">总计 ${Math.round(actualEnergy)} kcal</span>
             </div>`;
         }
 

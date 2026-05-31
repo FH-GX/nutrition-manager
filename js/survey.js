@@ -20,57 +20,53 @@ let surveyState = {
 
 function initAuth() {
     // 初始化默认注册验证码
-    if (!localStorage.getItem('nutri_register_code')) {
-        localStorage.setItem('nutri_register_code', '0000');
-    }
+    initRegisterCode();
 
     // 更新账号下拉列表
     updateAccountDatalist();
 
-    const autoLogin = localStorage.getItem('today_eaten_auto_login') === 'true';
-    const current = localStorage.getItem('today_eaten_current');
-
-    const authSection = document.getElementById('authSection');
-    const surveySection = document.getElementById('surveySection');
-    const calculatorSection = document.getElementById('calculatorSection');
-
-    // 自动登录：检查 Supabase 会话
-    if (autoLogin && current) {
-        (async () => {
-            const session = await checkUserSession();
-            if (session.loggedIn) {
+    // 检查 Supabase 会话（是否已登录）
+    (async () => {
+        const session = await checkUserSession();
+        if (session.loggedIn) {
+            const current = getCurrentSessionUser();
+            if (current) {
                 doLogin(current);
                 // 同步云端数据（跨设备）
                 if (typeof syncAllFromSupabase === 'function') {
                     syncAllFromSupabase();
                 }
-            } else {
-                // 会话过期，显示登录页
-                authSection.style.display = 'block';
-                surveySection.style.display = 'none';
-                calculatorSection.style.display = 'none';
+                return;
             }
-        })();
-        return;
-    }
+        }
 
-    authSection.style.display = 'block';
-    surveySection.style.display = 'none';
-    calculatorSection.style.display = 'none';
+        // 未登录，显示登录页
+        hideAllSections();
+        $show('authSection');
+
+        // 如果有保存的密码，自动填充到表单
+        const saved = getSavedCredentials();
+        if (saved && saved.email) {
+            $val('loginName', saved.email);
+            $val('loginPassword', saved.password || '');
+            const cb = $('autoLoginCheck');
+            if (cb) cb.checked = true;
+        }
+    })();
 }
 
 function switchAuthTab(tab) {
     document.querySelectorAll('.auth-tab-btn').forEach(b => b.classList.remove('active'));
     if (tab === 'register') {
-        document.getElementById('authTabRegister').classList.add('active');
-        document.getElementById('authFormRegister').style.display = 'block';
-        document.getElementById('authFormLogin').style.display = 'none';
+        $addClass('authTabRegister', 'active');
+        $show('authFormRegister');
+        $hide('authFormLogin');
     } else {
-        document.getElementById('authTabLogin').classList.add('active');
-        document.getElementById('authFormRegister').style.display = 'none';
-        document.getElementById('authFormLogin').style.display = 'block';
+        $addClass('authTabLogin', 'active');
+        $hide('authFormRegister');
+        $show('authFormLogin');
     }
-    document.getElementById('authError').style.display = 'none';
+    $hide('authError');
 }
 
 function updateUserList() {
@@ -82,7 +78,7 @@ function updateUserList() {
  * 更新登录页账号下拉列表（datalist）
  */
 function updateAccountDatalist() {
-    const datalist = document.getElementById('userAccountList');
+    const datalist = $('userAccountList');
     if (!datalist) return;
     // 账号列表已切换至 Supabase Auth，不再从 localStorage 读取
     datalist.innerHTML = '';
@@ -98,72 +94,71 @@ function getDisplayName(email) {
 }
 
 async function registerUser() {
-    const name = document.getElementById('regName').value.trim();
-    const password = document.getElementById('regPassword').value.trim();
-    const confirm = document.getElementById('regConfirm').value.trim();
-    const errorEl = document.getElementById('authError');
+    const name = $val('regName');
+    const password = $val('regPassword');
+    const confirm = $val('regConfirm');
 
     // 校验邮箱格式
     if (!name || !password) {
-        errorEl.textContent = '请输入邮箱和密码';
-        errorEl.style.display = 'block';
+        $html('authError', '请输入邮箱和密码');
+        $show('authError');
         return;
     }
 
     if (!name.includes('@') || name.split('@').length !== 2 || name.split('@')[1].indexOf('.') === -1) {
-        errorEl.textContent = '请输入正确的邮箱格式（如 test@163.com）';
-        errorEl.style.display = 'block';
+        $html('authError', '请输入正确的邮箱格式（如 test@163.com）');
+        $show('authError');
         return;
     }
 
     // 校验密码：至少6位
     if (password.length < 6) {
-        errorEl.textContent = '密码至少6位';
-        errorEl.style.display = 'block';
+        $html('authError', '密码至少6位');
+        $show('authError');
         return;
     }
 
     if (password !== confirm) {
-        errorEl.textContent = '两次密码不一致';
-        errorEl.style.display = 'block';
+        $html('authError', '两次密码不一致');
+        $show('authError');
         return;
     }
 
     // 验证注册码
-    const code = document.getElementById('regCode').value.trim();
-    const validCode = localStorage.getItem('nutri_register_code') || '0000';
+    const code = $val('regCode');
+    const validCode = getRegisterCode();
     if (!code) {
-        errorEl.textContent = '请输入注册验证码';
-        errorEl.style.display = 'block';
+        $html('authError', '请输入注册验证码');
+        $show('authError');
         return;
     }
     if (code !== validCode) {
-        errorEl.textContent = '注册验证码错误，请联系管理员';
-        errorEl.style.display = 'block';
+        $html('authError', '注册验证码错误，请联系管理员');
+        $show('authError');
         return;
     }
 
-    errorEl.textContent = '⏳ 注册中...';
-    errorEl.style.display = 'block';
+    $html('authError', '⏳ 注册中...');
+    $show('authError');
 
     // Supabase 注册
     const result = await userSignUp(name, password);
 
     if (!result.success) {
-        errorEl.textContent = result.error || '注册失败';
-        errorEl.style.display = 'block';
+        $html('authError', result.error || '注册失败');
+        $show('authError');
         return;
     }
 
     // 暂存当前用户到 localStorage（兼容现有数据层）
-    localStorage.setItem('today_eaten_current', name);
+    setCurrentSessionUser(name);
 
     // 也写入 today_eaten_users 方便管理员后台查看（不存密码）
-    const saved = localStorage.getItem('today_eaten_users');
-    const users = saved ? JSON.parse(saved) : {};
+    const saved = getRegisteredUsers();
+    const users = saved; // already an array or object
     if (!users[name]) {
         users[name] = { password: '🔒 Supabase', registered: true };
-        localStorage.setItem('today_eaten_users', JSON.stringify(users));
+        saveRegisteredUsers(users);
     }
 
     doLogin(name);
@@ -173,32 +168,36 @@ async function registerUser() {
 }
 
 async function loginUser() {
-    const name = document.getElementById('loginName').value.trim();
-    const password = document.getElementById('loginPassword').value.trim();
-    const autoLogin = document.getElementById('autoLoginCheck')?.checked;
-    const errorEl = document.getElementById('authError');
+    const name = $val('loginName');
+    const password = $val('loginPassword');
+    const savePwd = $('autoLoginCheck')?.checked;
 
     if (!name || !password) {
-        errorEl.textContent = '请输入邮箱和密码';
-        errorEl.style.display = 'block';
+        $html('authError', '请输入邮箱和密码');
+        $show('authError');
         return;
     }
 
-    errorEl.textContent = '⏳ 登录中...';
-    errorEl.style.display = 'block';
+    $html('authError', '⏳ 登录中...');
+    $show('authError');
 
     // Supabase 登录
     const result = await userSignIn(name, password);
 
     if (!result.success) {
-        errorEl.textContent = result.error || '登录失败';
-        errorEl.style.display = 'block';
+        $html('authError', result.error || '登录失败');
+        $show('authError');
         return;
     }
 
-    // 保存登录状态
-    localStorage.setItem('today_eaten_auto_login', autoLogin ? 'true' : 'false');
-    localStorage.setItem('today_eaten_current', name);
+    // 保存或清除密码
+    if (savePwd) {
+        saveCredentials(name, password);
+    } else {
+        clearCredentials();
+    }
+
+    setCurrentSessionUser(name);
 
     doLogin(name);
 
@@ -212,36 +211,24 @@ function doLogin(name) {
     surveyState.currentUser = name;
     const displayName = getDisplayName(name);
 
-    document.getElementById('authSection').style.display = 'none';
-    document.getElementById('surveySection').style.display = 'none';
-    document.getElementById('foodDbSection').style.display = 'none';
-    document.getElementById('calculatorSection').style.display = 'block';
-    document.getElementById('surveyUserName').textContent = displayName;
+    hideAllSections();
+    $show('calculatorSection');
+    $text('surveyUserName', displayName);
+
     // 更新右上角用户信息
-    const hdrUser = document.getElementById('headerUserName');
+    const hdrUser = $('headerUserName');
     if (hdrUser) {
         const levelInfo = (typeof getUserLevelInfo === 'function') ? getUserLevelInfo(currentUser) : null;
         hdrUser.textContent = (levelInfo ? levelInfo.icon : '👤') + ' ' + displayName;
     }
-    document.getElementById('authError').style.display = 'none';
+    $hide('authError');
 
     // 显示右上角用户信息
-    const headerRight = document.getElementById('headerRight');
-    if (headerRight) headerRight.style.display = 'flex';
+    $showFlex('headerRight');
 
     updateNavActive('calculator');
 
     initSurvey();
-}
-
-function updateNavActive(tab) {
-    const btns = document.querySelectorAll('.nav-btn');
-    btns.forEach(b => b.classList.remove('active'));
-    // 0: calculator, 1: survey, 2: history, 3: foodDb
-    if (tab === 'calculator' && btns.length > 0) btns[0].classList.add('active');
-    if (tab === 'survey' && btns.length > 1) btns[1].classList.add('active');
-    if (tab === 'history' && btns.length > 2) btns[2].classList.add('active');
-    if (tab === 'foodDb' && btns.length > 3) btns[3].classList.add('active');
 }
 
 function switchUser(name) {
@@ -250,22 +237,36 @@ function switchUser(name) {
     showToast('请使用登录功能', 'info');
 }
 
+/**
+ * 显示设置页面
+ */
+function showSettings() {
+    renderNav('nav-settingsSection', 'settings');
+    hideAllSections();
+    $show('settingsSection');
+
+    // 渲染设置内容
+    if (typeof renderSettingsPage === 'function') {
+        renderSettingsPage();
+    }
+
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
 function logoutUser() {
     // Supabase 登出
     userSignOut();
     
-    localStorage.removeItem('today_eaten_current');
-    // 保留自动登录设置，只清除当前会话
+    clearCurrentSessionUser();
+    // 退出时不删除保存的密码，只清除当前会话
     surveyState.currentUser = null;
     resetSurveyData();
 
     // 隐藏右上角用户信息
-    const headerRight = document.getElementById('headerRight');
-    if (headerRight) headerRight.style.display = 'none';
+    $hide('headerRight');
 
-    document.getElementById('surveySection').style.display = 'none';
-    document.getElementById('resultPageSection').style.display = 'none';
-    document.getElementById('authSection').style.display = 'block';
+    hideAllSections();
+    $show('authSection');
 
     // 更新账号下拉列表
     updateAccountDatalist();
@@ -290,7 +291,7 @@ function initSurvey() {
  * 渲染食物摄入频率表
  */
 function renderFoodFreqTable() {
-    const tbody = document.getElementById('foodFreqBody');
+    const tbody = $('foodFreqBody');
     if (!tbody) return;
 
     let html = '';
@@ -348,7 +349,7 @@ function renderFoodFreqTable() {
  * 渲染其他饮食习惯（带进食频率输入框+选择器，同行）
  */
 function renderOtherHabits() {
-    const container = document.getElementById('otherHabits');
+    const container = $('otherHabits');
     if (!container) return;
 
     let html = '<div class="habit-grid">';
@@ -444,7 +445,7 @@ function submitSurvey() {
 
     // 计算问卷统计（每日实际摄入）
     const intake = calculateIntakeFromSurvey();
-    console.log('📊 问卷统计结果:', intake);
+    console.debug('📊 问卷统计结果:', intake);
 
     const surveyResult = {
         name,
@@ -455,9 +456,9 @@ function submitSurvey() {
         timestamp: new Date().toISOString(),
     };
 
-    localStorage.setItem('survey_' + name, JSON.stringify(surveyResult));
+    saveSurveyData(name, surveyResult);
 
-    document.getElementById('name').value = name;
+    $setVal('name', name);
 
     // 显示方案生成页面
     showResultPage(intake);
@@ -465,24 +466,76 @@ function submitSurvey() {
 }
 
 /**
+ * 跳过问卷，直接进入方案生成
+ */
+function skipSurvey() {
+    const name = surveyState.currentUser;
+    if (!name) { showToast('请先登录', 'error'); return; }
+
+    // 计算基本信息（如果已有）
+    const formData = loadBasicInfo();
+    if (!formData) {
+        showToast('请先在设置页填写基本信息', 'info');
+        showSettings();
+        return;
+    }
+
+    // 保存到用户数据
+    users[currentUser] = {
+        ...users[currentUser],
+        ...formData,
+        xiaResult: calculateTDEE_XiaMeng(
+            formData.height,
+            formData.weight,
+            formData.age,
+            formData.activity
+        )
+    };
+
+    // 跳转到方案生成页（无问卷数据）
+    if (typeof showResultPage === 'function') {
+        showResultPage(null);
+    }
+}
+
+/**
+ * 生成方案生成页专用导航（复用NAV_ITEMS定义 +
+ * 方案生成active tab + 退出登录）
+ */
+function renderResultNav() {
+    // 固定按钮：方案生成（active，无onclick）
+    let html = '<button class="nav-btn active">📊 方案生成</button>';
+
+    // 共享按钮：结果页不需要打卡（已在方案页），去掉避免两行
+    const keys = ['history', 'foodDb', 'settings'];
+    for (const key of keys) {
+        const item = NAV_ITEMS[key];
+        if (item) {
+            html += `<button class="nav-btn" onclick="${item.show}()">${item.icon} ${item.label}</button>`;
+        }
+    }
+
+    // 退出登录
+    html += '<button class="nav-btn nav-btn-logout" onclick="logoutUser()">🚪 退出登录</button>';
+
+    const navEl = document.getElementById('nav-resultPageSection');
+    if (navEl) navEl.innerHTML = html;
+}
+
+/**
  * 显示方案生成页面
  */
 function showResultPage(intake) {
-    // 隐藏其他区域
-    document.getElementById('authSection').style.display = 'none';
-    document.getElementById('calculatorSection').style.display = 'none';
-    document.getElementById('surveySection').style.display = 'none';
-    document.getElementById('foodDbSection').style.display = 'none';
-    document.getElementById('resultSection').style.display = 'none';
+    hideAllSections();
+    $show('resultPageSection');
 
-    // 显示方案生成页面
-    const resultPage = document.getElementById('resultPageSection');
-    resultPage.style.display = 'block';
+    // 动态生成导航栏（方案生成页特殊：含active标题+退出登录）
+    renderResultNav();
 
     // 更新用户名显示（header和页面内）
     const userName = surveyState.currentUser || '用户';
-    const userNameEl = document.getElementById('resultPageUserName');
-    const headerUserName = document.getElementById('headerUserName');
+    const userNameEl = $('resultPageUserName');
+    const headerUserName = $('headerUserName');
     if (userNameEl) userNameEl.textContent = userName;
     if (headerUserName) {
         const levelInfo = (typeof getUserLevelInfo === 'function') ? getUserLevelInfo(currentUser) : null;
@@ -504,8 +557,19 @@ function showResultPage(intake) {
  * 在方案页面渲染摄入分析
  */
 function renderIntakeAnalysisInPage(intake) {
-    const container = document.getElementById('intakeAnalysisContent');
+    const container = $('intakeAnalysisContent');
     if (!container) return;
+
+    // 没有问卷数据 → 直接跳过分析，显示提示
+    if (!intake) {
+        container.innerHTML = `<div class="card survey-empty-card">
+            <p class="survey-empty-msg">💡 暂未填写饮食问卷，将基于基本信息计算营养方案</p>
+            <p class="survey-empty-hint">
+                <a href="#" onclick="showSurvey();return false;" class="survey-empty-link">填写问卷</a> 可获得更精准的摄入分析
+            </p>
+        </div>`;
+        return;
+    }
 
     const userData = users[currentUser];
     if (!userData || !userData.xiaResult) {
@@ -641,37 +705,58 @@ function showIntakeAnalysis(intake) {
 // ============================================
 
 function showSurvey() {
-    document.getElementById('authSection').style.display = 'none';
-    document.getElementById('surveySection').style.display = 'block';
-    document.getElementById('calculatorSection').style.display = 'none';
-    document.getElementById('foodDbSection').style.display = 'none';
-    document.getElementById('resultPageSection').style.display = 'none';
-    updateNavActive('survey');
+    renderNav('nav-surveySection', 'survey', ['calculator', 'survey', 'checkin', 'history', 'foodDb', 'settings']);
+    hideAllSections();
+    $show('surveySection');
+    // 每次显示都重新渲染问卷内容，确保表格有数据
+    initSurvey();
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function showCalculator() {
-    document.getElementById('authSection').style.display = 'none';
-    document.getElementById('surveySection').style.display = 'none';
-    document.getElementById('foodDbSection').style.display = 'none';
-    document.getElementById('resultPageSection').style.display = 'none';
-    document.getElementById('calculatorSection').style.display = 'block';
-    updateNavActive('calculator');
+    renderNav('nav-calculatorSection', 'calculator');
+    hideAllSections();
+    $show('calculatorSection');
     window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    // 显示已保存的基本信息摘要
+    renderBasicInfoSummary();
 }
 
 function showHistory() {
-    document.getElementById('authSection').style.display = 'none';
-    document.getElementById('surveySection').style.display = 'none';
-    document.getElementById('calculatorSection').style.display = 'none';
-    document.getElementById('foodDbSection').style.display = 'none';
-    document.getElementById('resultPageSection').style.display = 'none';
-    document.getElementById('historySection').style.display = 'block';
-    updateNavActive('history');
+    renderNav('nav-historySection', 'history');
+    hideAllSections();
+    $show('historySection');
     window.scrollTo({ top: 0, behavior: 'smooth' });
     if (typeof renderCalendarPage === 'function') {
         renderCalendarPage();
     }
+}
+
+/**
+ * 每日打卡入口（导航栏调用）
+ * 跳转到营养计算器页，然后弹出昨日打卡弹窗
+ */
+function showCheckInPage() {
+    showCalculator(); // 先显示计算器页
+
+    const yesterday = getYesterdayStr();
+    const yesterdayHistory = getDayHistory(yesterday);
+
+    if (!yesterdayHistory) {
+        showToast('昨日暂无方案数据，无法打卡', 'info');
+        return;
+    }
+
+    if (isCheckedIn(yesterday)) {
+        showToast('✅ 昨日已打卡', 'success');
+        return;
+    }
+
+    // 弹出打卡弹窗
+    setTimeout(() => {
+        showCheckInPopup(yesterday, yesterdayHistory);
+    }, 200);
 }
 
 // ============================================
@@ -698,8 +783,9 @@ function showToast(message, type) {
 
 document.addEventListener('DOMContentLoaded', () => {
     initAuth();
-    document.getElementById('surveySubmitBtn')?.addEventListener('click', submitSurvey);
-    document.getElementById('registerBtn')?.addEventListener('click', registerUser);
-    document.getElementById('loginBtn')?.addEventListener('click', loginUser);
-    document.getElementById('logoutBtn')?.addEventListener('click', logoutUser);
+    // 事件绑定
+    $('surveySubmitBtn')?.addEventListener('click', submitSurvey);
+    $('registerBtn')?.addEventListener('click', registerUser);
+    $('loginBtn')?.addEventListener('click', loginUser);
+    $('logoutBtn')?.addEventListener('click', logoutUser);
 });

@@ -442,7 +442,7 @@ function calculateTotals(breakfast, lunch, snack, dinner) {
 // 渲染分餐表格
 // ============================================
 function renderMealPlanTable(plan) {
-    if (!plan) return '<p style="color:var(--text-light)">请先计算营养方案</p>';
+    if (!plan) return '<p class="mp-empty-msg">请先计算营养方案</p>';
     
     const { breakfast, lunch, snack, dinner, totals, macros, mealMacros, fatSources, sideCarbTotal, remainingCarb } = plan;
     
@@ -458,7 +458,7 @@ function renderMealPlanTable(plan) {
     
     // 格式化食物显示：名称 (克数g)
     function fmtFood(name, grams, detail) {
-        if (!name || grams <= 0) return '<span style="color:#ccc">—</span>';
+        if (!name || grams <= 0) return '<span class="mp-dash">—</span>';
         let text = name;
         if (detail) text = name + ' ' + detail;
         text += ' (' + grams + 'g)';
@@ -543,7 +543,7 @@ function renderMealPlanTable(plan) {
     
     // 构建HTML
     let html = `
-    <h3 style="margin-top:24px;margin-bottom:8px;">🥗 今日分餐建议 <span style="font-size:0.9rem;color:var(--text-light);font-weight:400;">${todayLabel}</span></h3>
+    <h3 class="mp-section-title">🥗 今日分餐建议 <span class="mp-subtitle">${todayLabel}</span></h3>
     <table class="meal-plan-table">
         <thead>
             <tr>
@@ -580,10 +580,10 @@ function renderMealPlanTable(plan) {
     
     html += `
     <div class="meal-plan-meta">
-        <span class="meta-tag"><span class="meta-dot" style="background:#e74c3c;"></span>蛋白质 ${pMacros.grams_actual}g</span>
-        <span class="meta-tag"><span class="meta-dot" style="background:#f39c12;"></span>脂肪 ${fMacros.grams_actual}g</span>
-        <span class="meta-tag"><span class="meta-dot" style="background:#3498db;"></span>碳水 ${cMacros.grams_actual}g</span>
-        <span class="meta-tag"><span class="meta-dot" style="background:#2d7a4f;"></span>热量 约${tdeeKcal}kcal</span>
+        <span class="meta-tag"><span class="meta-dot meta-dot-protein"></span>蛋白质 ${pMacros.grams_actual}g</span>
+        <span class="meta-tag"><span class="meta-dot meta-dot-fat"></span>脂肪 ${fMacros.grams_actual}g</span>
+        <span class="meta-tag"><span class="meta-dot meta-dot-carb"></span>碳水 ${cMacros.grams_actual}g</span>
+        <span class="meta-tag"><span class="meta-dot meta-dot-energy"></span>热量 约${tdeeKcal}kcal</span>
         <span class="meta-tag meta-tag-light">早餐 25% (~${mealMacros.breakfast.kcal}kcal)</span>
         <span class="meta-tag meta-tag-light">午餐 35% (~${mealMacros.lunch.kcal}kcal)</span>
         <span class="meta-tag meta-tag-light">加餐 10% (~${mealMacros.snack.kcal}kcal)</span>
@@ -594,18 +594,18 @@ function renderMealPlanTable(plan) {
     const fatDiff = fatSources.target - fatSources.total;
     
     html += `
-    <div class="fat-source-box" style="margin-top:16px;padding:12px 16px;background:#f8f9fa;border-radius:8px;border-left:4px solid #f39c12;">
-        <div style="font-weight:600;margin-bottom:8px;color:#333;">🥑 脂肪来源分布</div>
-        <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:0.9rem;">
+    <div class="fat-source-box">
+        <div class="fat-source-title">🥑 脂肪来源分布</div>
+        <div class="fat-source-grid">
             <span>🥩 动物脂肪：<strong>${fatSources.animal}g</strong>（蛋/奶/肉）</span>
             <span>🌿 植物脂肪：<strong>${fatSources.plant}g</strong>（油/坚果/蔬菜/豆制品）</span>
             <span>📊 实际总计：<strong>${fatSources.total}g</strong> / 目标 ${fatSources.target}g</span>
         </div>`;
     
     if (fatDiff > 20) {
-        html += `<div style="margin-top:8px;font-size:0.85rem;color:#e67e22;">⚠️ 当前分餐脂肪偏低（差${fatDiff}g），建议增加坚果或选择三文鱼、牛油果等富脂食物</div>`;
+        html += `<div class="fat-warning">⚠️ 当前分餐脂肪偏低（差${fatDiff}g），建议增加坚果或选择三文鱼、牛油果等富脂食物</div>`;
     } else if (fatDiff < -20) {
-        html += `<div style="margin-top:8px;font-size:0.85rem;color:#e67e22;">⚠️ 当前分餐脂肪偏高（多${Math.abs(fatDiff)}g），建议减少烹调油或选择瘦肉</div>`;
+        html += `<div class="fat-warning">⚠️ 当前分餐脂肪偏高（多${Math.abs(fatDiff)}g），建议减少烹调油或选择瘦肉</div>`;
     }
     
     html += `</div>`;
