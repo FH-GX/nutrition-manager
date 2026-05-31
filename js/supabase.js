@@ -375,3 +375,49 @@ async function getUserAccount(username) {
         return null;
     }
 }
+
+// ============================================
+// 用户数据同步辅助函数（供 app.js 调用）
+// ============================================
+
+/**
+ * 获取当前登录用户对应的 user_accounts.id
+ * @returns {Promise<string|null>}
+ */
+async function getCurrentAccountId() {
+    try {
+        const sb = getSupabase();
+        if (!sb) return null;
+
+        const session = await checkUserSession();
+        if (!session.loggedIn) return null;
+
+        const { data, error } = await sb
+            .from('user_accounts')
+            .select('id')
+            .eq('auth_id', session.user.id)
+            .single();
+
+        if (error || !data) return null;
+        return data.id;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * 获取当前登录用户的邮箱
+ * @returns {Promise<string|null>}
+ */
+async function getCurrentUserEmail() {
+    try {
+        const sb = getSupabase();
+        if (!sb) return null;
+
+        const session = await checkUserSession();
+        if (!session.loggedIn) return null;
+        return session.user.email || null;
+    } catch {
+        return null;
+    }
+}

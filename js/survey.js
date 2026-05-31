@@ -40,6 +40,10 @@ function initAuth() {
             const session = await checkUserSession();
             if (session.loggedIn) {
                 doLogin(current);
+                // 同步云端数据（跨设备）
+                if (typeof syncAllFromSupabase === 'function') {
+                    syncAllFromSupabase();
+                }
             } else {
                 // 会话过期，显示登录页
                 authSection.style.display = 'block';
@@ -163,6 +167,9 @@ async function registerUser() {
     }
 
     doLogin(name);
+
+    // 新用户无需同步云端数据（Supabase里没有）
+    // syncAllFromSupabase() 会在登录时自动处理
 }
 
 async function loginUser() {
@@ -194,6 +201,11 @@ async function loginUser() {
     localStorage.setItem('today_eaten_current', name);
 
     doLogin(name);
+
+    // 从 Supabase 拉取云端数据到本地（跨设备同步）
+    if (typeof syncAllFromSupabase === 'function') {
+        syncAllFromSupabase();
+    }
 }
 
 function doLogin(name) {

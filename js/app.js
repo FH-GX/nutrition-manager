@@ -81,6 +81,114 @@ function getStorageKey(base) {
     return `nutri_${base}_${currentUser}`;
 }
 
+// ============================================
+// Supabase 同步辅助（写时自动 sync）
+// ============================================
+
+/**
+ * 同步方案记录到 Supabase
+ */
+async function syncMealPlanToSupabase(dateStr, plan, actual, status) {
+    try {
+        const userId = await getCurrentAccountId();
+        if (!userId) return;
+        const sb = getSupabase();
+        if (!sb) return;
+        await sb.from('meal_plans').upsert({
+            user_id: userId,
+            plan_date: dateStr,
+            plan_data: plan || null,
+            actual_data: actual || null,
+            status: status || null
+        }, { onConflict: 'user_id, plan_date' });
+    } catch (e) { console.warn('syncMealPlanToSupabase失败:', e.message); }
+}
+
+/**
+ * 同步打卡状态到 Supabase
+ */
+async function syncCheckinToSupabase(dateStr, status) {
+    try {
+        const userId = await getCurrentAccountId();
+        if (!userId) return;
+        const sb = getSupabase();
+        if (!sb) return;
+        await sb.from('checkin_logs').upsert({
+            user_id: userId,
+            log_date: dateStr,
+            status: status
+        }, { onConflict: 'user_id, log_date' });
+    } catch (e) { console.warn('syncCheckinToSupabase失败:', e.message); }
+}
+
+/**
+ * 同步负债队列到 Supabase（存为一条 singleton 记录）
+ */
+async function syncDebtQueueToSupabase(queue) {
+    try {
+        const userId = await getCurrentAccountId();
+        if (!userId) return;
+        const sb = getSupabase();
+        if (!sb) return;
+        await sb.from('energy_compensations').upsert({
+            user_id: userId,
+            log_date: '2000-01-01',
+            queue_data: queue || []
+        }, { onConflict: 'user_id, log_date' });
+    } catch (e) { console.warn('syncDebtQueueToSupabase失败:', e.message); }
+}
+
+/**
+ * 从 Supabase 拉取数据覆盖本地 localStorage
+ * 登录/刷新时调用，实现跨设备同步
+ */
+async function syncAllFromSupabase() {
+    try {
+        const userId = await getCurrentAccountId();
+        if (!userId) return;
+        const sb = getSupabase();
+        if (!sb) return;
+
+        // 1. 同步方案历史
+        const { data: plans } = await sb.from('meal_plans')
+            .select('plan_date, plan_data, actual_data, status')
+            .eq('user_id', userId)
+            .order('plan_date', { ascending: false });
+        if (plans && plans.length > 0) {
+            const history = plans.map(p => ({
+                date: p.plan_date,
+                plan: p.plan_data,
+                actual: p.actual_data,
+                status: p.status
+            }));
+            localStorage.setItem(getStorageKey('meal_history'), JSON.stringify(history));
+        }
+
+        // 2. 同步打卡记录
+        const { data: checkins } = await sb.from('checkin_logs')
+            .select('log_date, status')
+            .eq('user_id', userId);
+        if (checkins && checkins.length > 0) {
+            const checkinData = {};
+            checkins.forEach(c => { checkinData[c.log_date] = c.status === 'checked'; });
+            localStorage.setItem(getStorageKey('checkin'), JSON.stringify(checkinData));
+        }
+
+        // 3. 同步负债队列
+        const { data: debts } = await sb.from('energy_compensations')
+            .select('queue_data')
+            .eq('user_id', userId)
+            .eq('log_date', '2000-01-01');
+        if (debts && debts.length > 0 && debts[0].queue_data) {
+            localStorage.setItem(getStorageKey('debt'), JSON.stringify(debts[0].queue_data));
+        }
+
+        console.log('✅ Supabase 数据同步完成');
+    } catch (e) {
+        console.warn('syncAllFromSupabase失败:', e.message);
+    }
+}
+
 // ---- 历史方案记录 ----
 
 /**
@@ -96,7 +204,6 @@ function getMealHistory() {
 
 /**
  * 保存历史记录
- * @param {Array} history
  */
 function saveMealHistory(history) {
     localStorage.setItem(getStorageKey('meal_history'), JSON.stringify(history));
@@ -105,7 +212,6 @@ function saveMealHistory(history) {
 /**
  * 保存方案后写入历史（保留所有记录，不过期）
  */
-
 function savePlanToHistory(mealPlan) {
     const today = new Date().toISOString().slice(0, 10);
     const history = getMealHistory();
@@ -117,6 +223,8 @@ function savePlanToHistory(mealPlan) {
     }
     saveMealHistory(history);
     cleanOldHistory();
+    // 同步到 Supabase
+    syncMealPlanToSupabase(today, mealPlan, existing?.actual || null, existing?.status || null);
 }
 
 /**
@@ -158,6 +266,9 @@ function updateCheckInData(dateStr, actual) {
         record.actual = actual;
         record.status = 'checked';
         saveMealHistory(history);
+        // 同步到 Supabase
+        syncMealPlanToSupabase(dateStr, record.plan, actual, 'checked');
+        syncCheckinToSupabase(dateStr, 'checked');
     }
 }
 
@@ -174,8 +285,13 @@ function getCheckinData() {
     } catch { return {}; }
 }
 
-function saveCheckinData(data) {
+function saveCheckinData(data, syncDate) {
     localStorage.setItem(getStorageKey('checkin'), JSON.stringify(data));
+    // 如果传入了 syncDate，同步该日打卡状态到 Supabase
+    if (syncDate) {
+        const status = data[syncDate] === true ? 'checked' : 'skipped';
+        syncCheckinToSupabase(syncDate, status);
+    }
 }
 
 /**
@@ -185,7 +301,7 @@ function saveCheckinData(data) {
 function markCheckin(dateStr) {
     const data = getCheckinData();
     data[dateStr] = true;
-    saveCheckinData(data);
+    saveCheckinData(data, dateStr);
 }
 
 /**
@@ -223,12 +339,11 @@ function getDebtQueue() {
 
 function saveDebtQueue(queue) {
     localStorage.setItem(getStorageKey('debt'), JSON.stringify(queue));
+    syncDebtQueueToSupabase(queue);
 }
 
 /**
  * 挂一笔负债到指定日期
- * @param {string} targetDay - 'YYYY-MM-DD'
- * @param {number} kcal - 负债值（负=吃少了要多补；正=吃多了要少补）
  */
 function addDebt(targetDay, kcal) {
     const queue = getDebtQueue();
@@ -238,14 +353,11 @@ function addDebt(targetDay, kcal) {
 
 /**
  * 计算今天的总补偿值（封顶±15%）
- * @param {number} baseline - 基准TDEE
- * @returns {number} 调整值（负=今天少吃；正=今天多吃）
  */
 function getTodayCompensation(baseline) {
-    const limit = Math.round(baseline * 0.15); // ±15%上限
+    const limit = Math.round(baseline * 0.15);
     const today = new Date().toISOString().slice(0, 10);
     let queue = getDebtQueue();
-    // 筛选今天到期的负债
     let total = 0;
     const remaining = [];
     for (const item of queue) {
@@ -254,11 +366,8 @@ function getTodayCompensation(baseline) {
         } else if (item.day > today) {
             remaining.push(item);
         }
-        // 今天之前的已过期，直接扔掉
     }
-    // 封顶
     const compensation = Math.max(-limit, Math.min(limit, total));
-    // 超出部分滚到明天
     const overflow = total - compensation;
     if (overflow !== 0) {
         const tomorrow = new Date();
@@ -271,27 +380,23 @@ function getTodayCompensation(baseline) {
 
 /**
  * 周一清零处理
- * @param {number} baseline - 基准TDEE
- * @returns {string|null} 上周总结文案（如无可返回null）
  */
 function weeklyReset(baseline) {
     const now = new Date();
-    if (now.getDay() !== 1) return null; // 不是周一
+    if (now.getDay() !== 1) return null;
 
     const key = getStorageKey('last_reset');
     const lastReset = localStorage.getItem(key);
     const todayStr = now.toISOString().slice(0, 10);
-    if (lastReset === todayStr) return null; // 今天已处理过了
+    if (lastReset === todayStr) return null;
 
-    // 计算上周总负债（未完成的）
     const queue = getDebtQueue();
     const totalKcal = queue.reduce((sum, item) => sum + item.kcal, 0);
 
-    // 清空负债
     saveDebtQueue([]);
     localStorage.setItem(key, todayStr);
 
-    if (Math.abs(totalKcal) < 10) return null; // 忽略微小偏差
+    if (Math.abs(totalKcal) < 10) return null;
 
     if (totalKcal < 0) {
         return `上周能量缺口约 ${Math.round(-totalKcal)} kcal，记得关注饮食摄入。`;
@@ -2049,7 +2154,7 @@ function submitCheckIn(dateStr) {
     // 标记已打卡
     const data = getCheckinData();
     data[dateStr] = true;
-    saveCheckinData(data);
+    saveCheckinData(data, dateStr);
 
     // 算偏差
     const userData = users[currentUser];
@@ -2098,7 +2203,7 @@ function closeCheckInPopup() {
     const yesterday = getYesterdayStr();
     const data = getCheckinData();
     data[yesterday] = 'skipped';
-    saveCheckinData(data);
+    saveCheckinData(data, yesterday);
 
     // 重新触发方案生成
     const idx = pendingProfileIndex;
