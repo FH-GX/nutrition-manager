@@ -86,9 +86,9 @@ function getStorageKey(base) {
 // ============================================
 
 /**
- * 同步方案记录到 Supabase
+ * 同步方案记录到 Supabase（只存 plan_data）
  */
-async function syncMealPlanToSupabase(dateStr, plan, actual, status) {
+async function syncMealPlanToSupabase(dateStr, plan) {
     try {
         const userId = await getCurrentAccountId();
         if (!userId) return;
@@ -97,17 +97,18 @@ async function syncMealPlanToSupabase(dateStr, plan, actual, status) {
         await sb.from('meal_plans').upsert({
             user_id: userId,
             plan_date: dateStr,
-            plan_data: plan || null,
-            actual_data: actual || null,
-            status: status || null
+            plan_data: plan || {}
         }, { onConflict: 'user_id, plan_date' });
     } catch (e) { console.warn('syncMealPlanToSupabase失败:', e.message); }
 }
 
 /**
- * 同步打卡状态到 Supabase
+ * 同步打卡数据到 Supabase（存到 checkin_logs 表）
+ * @param {string} dateStr
+ * @param {string} status - 'checked' | 'skipped'
+ * @param {object|null} actual - {energy, protein, carb, fat}
  */
-async function syncCheckinToSupabase(dateStr, status) {
+async function syncCheckinToSupabase(dateStr, status, actual) {
     try {
         const userId = await getCurrentAccountId();
         if (!userId) return;
@@ -116,7 +117,8 @@ async function syncCheckinToSupabase(dateStr, status) {
         await sb.from('checkin_logs').upsert({
             user_id: userId,
             log_date: dateStr,
-            status: status
+            status: status,
+            actual_data: actual || null
         }, { onConflict: 'user_id, log_date' });
     } catch (e) { console.warn('syncCheckinToSupabase失败:', e.message); }
 }
@@ -149,29 +151,44 @@ async function syncAllFromSupabase() {
         const sb = getSupabase();
         if (!sb) return;
 
-        // 1. 同步方案历史
+        // 1. 同步方案历史（meal_plans 只有 plan_data，不含 actual）
         const { data: plans } = await sb.from('meal_plans')
-            .select('plan_date, plan_data, actual_data, status')
+            .select('plan_date, plan_data')
             .eq('user_id', userId)
             .order('plan_date', { ascending: false });
         if (plans && plans.length > 0) {
             const history = plans.map(p => ({
                 date: p.plan_date,
                 plan: p.plan_data,
-                actual: p.actual_data,
-                status: p.status
+                actual: null,
+                status: null
             }));
             localStorage.setItem(getStorageKey('meal_history'), JSON.stringify(history));
         }
 
-        // 2. 同步打卡记录
+        // 2. 同步打卡记录（含实际摄入数据）
         const { data: checkins } = await sb.from('checkin_logs')
-            .select('log_date, status')
+            .select('log_date, status, actual_data')
             .eq('user_id', userId);
         if (checkins && checkins.length > 0) {
             const checkinData = {};
             checkins.forEach(c => { checkinData[c.log_date] = c.status === 'checked'; });
             localStorage.setItem(getStorageKey('checkin'), JSON.stringify(checkinData));
+
+            // 同时更新 meal_history 中的 actual 和 status
+            const history = getMealHistory();
+            if (history.length > 0) {
+                let changed = false;
+                checkins.forEach(c => {
+                    const record = history.find(h => h.date === c.log_date);
+                    if (record && !record.actual) {
+                        record.actual = c.actual_data;
+                        record.status = c.status;
+                        changed = true;
+                    }
+                });
+                if (changed) saveMealHistory(history);
+            }
         }
 
         // 3. 同步负债队列
@@ -224,7 +241,7 @@ function savePlanToHistory(mealPlan) {
     saveMealHistory(history);
     cleanOldHistory();
     // 同步到 Supabase
-    syncMealPlanToSupabase(today, mealPlan, existing?.actual || null, existing?.status || null);
+    syncMealPlanToSupabase(today, mealPlan);
 }
 
 /**
@@ -267,8 +284,8 @@ function updateCheckInData(dateStr, actual) {
         record.status = 'checked';
         saveMealHistory(history);
         // 同步到 Supabase
-        syncMealPlanToSupabase(dateStr, record.plan, actual, 'checked');
-        syncCheckinToSupabase(dateStr, 'checked');
+        syncMealPlanToSupabase(dateStr, record.plan);
+        syncCheckinToSupabase(dateStr, 'checked', actual);
     }
 }
 
