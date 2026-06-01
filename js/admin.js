@@ -936,9 +936,25 @@ function saveRegCode() {
  * 初始化学习模式
  */
 async function initLearningMode() {
-    // 隐藏计算器界面
-    document.getElementById('inputSection').style.display = 'none';
-    document.getElementById('resultSection').style.display = 'none';
+    // 1. 隐藏所有页面主体 section
+    const allSections = [
+        'calculatorSection', 'surveySection', 'historySection',
+        'foodDbSection', 'settingsSection', 'resultPageSection',
+        'authSection', 'inputSection', 'resultSection'
+    ];
+    allSections.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+    });
+
+    // 2. 隐藏所有顶部导航容器（学习模式下不需要导航）
+    document.querySelectorAll('.nav-tabs').forEach(el => {
+        el.style.display = 'none';
+    });
+
+    // 3. 隐藏右上角用户信息
+    const headerRight = document.getElementById('headerRight');
+    if (headerRight) headerRight.style.display = 'none';
 
     // 检查或创建学习容器
     let learnSection = document.getElementById('learnSection');
@@ -963,7 +979,7 @@ async function initLearningMode() {
                 <p class="learn-empty-icon">📭</p>
                 <p>还没有可学习的内容</p>
                 <p class="learn-empty-hint">请管理员登录后，在"扫盲学习台"中勾选要展示的内容</p>
-                <button class="btn-calculate learn-empty-btn" onclick="window.location.href=window.location.pathname">返回计算器</button>
+                <button class="btn-calculate learn-empty-btn" onclick="window.location.href=window.location.pathname + '?goto=settings'">返回设置</button>
             </div>
         `;
         return;
@@ -993,7 +1009,7 @@ async function initLearningMode() {
     html += `
         <footer class="learn-footer">
             <p class="learn-footer-text">📱 翻看学习，每天进步一点点</p>
-            <button class="btn-secondary learn-back-btn" onclick="window.location.href=window.location.pathname">← 返回计算器</button>
+            <button class="btn-secondary learn-back-btn" onclick="window.location.href=window.location.pathname + '?goto=settings'">← 返回设置</button>
         </footer>
     `;
 
@@ -1071,7 +1087,7 @@ function bindAdminShortcut() {
 function initAdmin() {
     bindAdminShortcut();
 
-    // 检查是否有学习模式参数
+    // 检查URL参数
     const params = new URLSearchParams(window.location.search);
     if (params.get('mode') === 'learn') {
         // 延迟DOM加载完成后再执行
@@ -1081,6 +1097,23 @@ function initAdmin() {
             initLearningMode();
         }
         return;
+    }
+
+    // 扫盲台退出后返回设置页
+    if (params.get('goto') === 'settings') {
+        // 清除URL参数（防止刷新后又跳到设置页）
+        window.history.replaceState({}, '', window.location.pathname);
+        // DOM加载完成后跳转到设置页
+        const goSettings = () => {
+            if (typeof showSettings === 'function') showSettings();
+            else document.removeEventListener('DOMContentLoaded', goSettings);
+        };
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', goSettings);
+        } else {
+            goSettings();
+        }
+        // 不return，继续执行下面的会话检查（由auth模块决定显示登录还是内容）
     }
 
     // 检查是否有保存的会话

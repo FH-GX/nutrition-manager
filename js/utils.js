@@ -243,6 +243,30 @@ function fmtDate(date) {
 }
 
 /**
+ * 获取本地时区今天的日期字符串 YYYY-MM-DD（解决 toISOString 返回 UTC 日期的问题）
+ * @returns {string}
+ */
+function todayLocal() {
+    const d = new Date();
+    return d.getFullYear() + '-' +
+        String(d.getMonth() + 1).padStart(2, '0') + '-' +
+        String(d.getDate()).padStart(2, '0');
+}
+
+/**
+ * 获取本地时区某天的日期字符串（偏移量 days 天）
+ * @param {number} offset - 正数未来，负数过去
+ * @returns {string}
+ */
+function dayOffsetLocal(offset) {
+    const d = new Date();
+    d.setDate(d.getDate() + (offset || 0));
+    return d.getFullYear() + '-' +
+        String(d.getMonth() + 1).padStart(2, '0') + '-' +
+        String(d.getDate()).padStart(2, '0');
+}
+
+/**
  * 深拷贝对象
  */
 function clone(obj) {

@@ -24,7 +24,7 @@ function renderCalendarPage() {
 
     // 默认选中今天（如果有记录）或最近有数据的日期
     if (!calState.selectedDate) {
-        const todayStr = now.toISOString().slice(0, 10);
+        const todayStr = todayLocal();
         const history = getMealHistory();
         if (history.find(h => h.date === todayStr)) {
             calState.selectedDate = todayStr;
@@ -76,7 +76,7 @@ function renderCalendarGrid() {
     let startOffset = firstDay.getDay() - 1;
     if (startOffset < 0) startOffset = 6;
 
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayStr = todayLocal();
     const history = getMealHistory();
     const checkin = getCheckinData();
 
@@ -350,8 +350,7 @@ function selectDate(dateStr) {
  */
 function renderDayDetail(dateStr) {
     const record = getDayHistory(dateStr);
-    const now = new Date();
-    const todayStr = now.toISOString().slice(0, 10);
+    const todayStr = todayLocal();
 
     if (dateStr > todayStr) {
         return '<div class="calendar-detail-empty">🔒 未来的日期，暂无数据</div>';

@@ -104,12 +104,13 @@ async function syncBasicInfoToSupabase(data) {
  */
 async function syncAllFromSupabase() {
     try {
-        const userId = await getCurrentAccountId();
-        if (!userId) return;
-        const sb = getSupabase();
-        if (!sb) return;
+        try {
+            const userId = await getCurrentAccountId();
+            if (!userId) return;
+            const sb = getSupabase();
+            if (!sb) return;
 
-        // 1. 同步方案历史（合并模式：本地优先，Supabase补缺）
+            // 1. 同步方案历史（合并模式：本地优先，Supabase补缺）
         const { data: plans } = await sb.from('meal_plans')
             .select('plan_date, plan_data')
             .eq('user_id', userId)
@@ -173,8 +174,18 @@ async function syncAllFromSupabase() {
         if (settings?.preferences?.basic_info && !loadBasicInfo()) {
             saveBasicInfo(settings.preferences.basic_info);
         }
-    } catch (e) {
-        console.warn('syncAllFromSupabase失败:', e.message);
+
+        } catch (e) {
+            console.warn('syncAllFromSupabase失败:', e.message);
+        }
+    } finally {
+        // 同步完成后刷新页面显示（个人信息等）
+        // finally 确保即使提前 return 或异常也刷新
+        try {
+            if (typeof renderBasicInfoSummary === 'function') {
+                renderBasicInfoSummary();
+            }
+        } catch {}
     }
 }
 
@@ -202,7 +213,7 @@ function saveMealHistory(history) {
  * 保存方案后写入历史（保留所有记录，不过期）
  */
 function savePlanToHistory(mealPlan) {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayLocal();
     const history = getMealHistory();
     const existing = history.find(h => h.date === today);
     if (existing) {
@@ -226,7 +237,7 @@ function cleanOldHistory() {
     if (days < 0) return; // 永久保留，不清除
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - days);
-    const cutoffStr = cutoff.toISOString().slice(0, 10);
+    const cutoffStr = cutoff.getFullYear() + '-' + String(cutoff.getMonth()+1).padStart(2,'0') + '-' + String(cutoff.getDate()).padStart(2,'0');
     const filtered = history.filter(h => h.date >= cutoffStr);
     if (filtered.length < history.length) {
         saveMealHistory(filtered);
@@ -308,9 +319,7 @@ function isCheckedIn(dateStr) {
  * @returns {string}
  */
 function getYesterdayStr() {
-    const d = new Date();
-    d.setDate(d.getDate() - 1);
-    return d.toISOString().slice(0, 10);
+    return dayOffsetLocal(-1);
 }
 
 // ---- 负债队列（能量补偿） ----
@@ -345,7 +354,7 @@ function addDebt(targetDay, kcal) {
  */
 function getTodayCompensation(baseline) {
     const limit = Math.round(baseline * 0.15);
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayLocal();
     let queue = getDebtQueue();
     let total = 0;
     const remaining = [];
@@ -361,7 +370,7 @@ function getTodayCompensation(baseline) {
     if (overflow !== 0) {
         const tomorrow = new Date();
         tomorrow.setDate(tomorrow.getDate() + 1);
-        remaining.push({ day: tomorrow.toISOString().slice(0, 10), kcal: overflow });
+        remaining.push({ day: dayOffsetLocal(1), kcal: overflow });
     }
     saveDebtQueue(remaining);
     return compensation;
@@ -376,7 +385,7 @@ function weeklyReset(baseline) {
 
     const key = getStorageKey('last_reset');
     const lastReset = localStorage.getItem(key);
-    const todayStr = now.toISOString().slice(0, 10);
+    const todayStr = todayLocal();
     if (lastReset === todayStr) return null;
 
     const queue = getDebtQueue();
@@ -410,8 +419,8 @@ function submitDeviation(actualEnergy, baseline, checkinDate) {
     const refDate = new Date(checkinDate + 'T12:00:00'); // 以打卡日期为基准
     const d1 = new Date(refDate); d1.setDate(d1.getDate() + 1);
     const d2 = new Date(refDate); d2.setDate(d2.getDate() + 2);
-    const d1Str = d1.toISOString().slice(0, 10);
-    const d2Str = d2.toISOString().slice(0, 10);
+    const d1Str = d1.getFullYear() + '-' + String(d1.getMonth()+1).padStart(2,'0') + '-' + String(d1.getDate()).padStart(2,'0');
+    const d2Str = d2.getFullYear() + '-' + String(d2.getMonth()+1).padStart(2,'0') + '-' + String(d2.getDate()).padStart(2,'0');
 
     addDebt(d1Str, half); // D+1补一半（= 今天）
     addDebt(d2Str, half); // D+2补一半（= 明天）
@@ -1428,6 +1437,16 @@ function finishApplyMacroRatios(userData, ratio, bmr, macros, compensation, comp
         compensationMsg = `${sign} 昨日偏差补偿：${Math.abs(compensation)} kcal`;
     }
 
+    // 持久化档位偏好（后续登录自动生成方案用）
+    if (typeof saveTierPreference === 'function') {
+        const pName = ratio.profileName || '';
+        saveTierPreference({
+            ratio: { carb: ratio.carb, protein: ratio.protein, fat: ratio.fat, profileName: pName },
+            profileName: pName,
+            timestamp: Date.now()
+        });
+    }
+
     // 隐藏档位选择，显示结果
     document.getElementById('profileSelectorCard').style.display = 'none';
     const resultSection = document.getElementById('resultSectionInPage');
@@ -1694,8 +1713,18 @@ function buildCheckInHTML(dateStr, plan, mode) {
     const d = new Date(dateStr);
     const weekDay = weekDays[d.getDay()];
     const isModify = (mode === 'modify');
-    const headerIcon = isModify ? '✏️' : '📋';
-    const headerText = isModify ? `修改打卡（${dateLabel} ${weekDay}）` : `昨天（${dateLabel} ${weekDay}）吃了吗？`;
+
+    // 判断是今天还是昨天
+    const today = new Date();
+    const todayStr = todayLocal();
+    const isToday = dateStr === todayStr;
+
+    const headerText = isModify
+        ? `修改打卡（${dateLabel} ${weekDay}）`
+        : isToday
+            ? `📋 今日饮食记录（${dateLabel} ${weekDay}）`
+            : `昨天（${dateLabel} ${weekDay}）吃了吗？`;
+    const headerIcon = isModify ? '✏️' : isToday ? '📋' : '📋';
 
     // 四餐勾选区块
     const meals = [
@@ -1965,8 +1994,11 @@ function submitCheckIn(dateStr) {
     const overlay = document.getElementById('checkinOverlay');
     const isModify = overlay && overlay.dataset.mode === 'modify';
 
-    // 关闭弹窗
+    // 关闭打卡弹窗
     if (overlay) overlay.remove();
+
+    // 获取方案数据（用于对比）
+    const historyRecord = getDayHistory(dateStr);
 
     if (isModify) {
         // 修改模式：刷新日历详情，不重生成方案
@@ -1974,13 +2006,104 @@ function submitCheckIn(dateStr) {
         if (typeof renderCalendarPage === 'function') renderCalendarPage();
         showToast('✅ 打卡数据已更新', 'success');
     } else {
-        // 正常打卡模式：重新生成方案（带补偿）
+        // 正常打卡模式
         const idx = pendingProfileIndex;
         pendingProfileIndex = null;
         if (idx !== null) {
+            // 打卡后继续生成方案
             selectLowCarbProfileForPage(idx);
+        } else {
+            // 直接打卡（无待办方案生成），显示对比结果
+            showCheckinComparison(dateStr, actual, historyRecord);
         }
     }
+}
+
+/**
+ * 显示打卡对比结果弹窗
+ */
+function showCheckinComparison(dateStr, actual, historyRecord) {
+    if (!historyRecord || !historyRecord.plan) return;
+
+    const plan = historyRecord.plan;
+    const planMacros = plan.macros;
+    if (!planMacros) return;
+
+    const planEnergy = (planMacros.protein.kcal || 0) + (planMacros.fat.kcal || 0) + (planMacros.carb.kcal || 0);
+    const actualEnergy = actual.energy || 0;
+
+    // 计算偏差
+    function diffStr(planVal, actualVal) {
+        const d = actualVal - (planVal || 0);
+        if (Math.abs(d) < 0.5) return '<span style="color:#4caf50;">✓ 符合</span>';
+        const sign = d > 0 ? '+' : '';
+        const cls = Math.abs(d) > 20 ? '#f44336' : Math.abs(d) > 10 ? '#ff9800' : '#4caf50';
+        return `<span style="color:${cls};">${sign}${Math.round(d)}</span>`;
+    }
+
+    const overlay = document.createElement('div');
+    overlay.className = 'checkin-overlay';
+    overlay.innerHTML = `
+        <div class="checkin-popup" style="max-width:500px;">
+            <div style="text-align:center;margin-bottom:16px;">
+                <div style="font-size:2.5rem;">📊</div>
+                <h3 style="margin:8px 0 4px 0;">打卡完成！</h3>
+                <p style="color:var(--text-light);font-size:0.9rem;margin:0;">
+                    ${dateStr.replace(/-/g, '/')} 实际饮食 vs 方案对比
+                </p>
+            </div>
+            <table style="width:100%;border-collapse:collapse;font-size:0.9rem;margin-bottom:16px;">
+                <thead>
+                    <tr style="border-bottom:2px solid #eee;">
+                        <th style="padding:8px;text-align:left;"></th>
+                        <th style="padding:8px;text-align:center;">方案</th>
+                        <th style="padding:8px;text-align:center;">实际</th>
+                        <th style="padding:8px;text-align:center;">偏差</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr style="border-bottom:1px solid #f0f0f0;">
+                        <td style="padding:8px;font-weight:600;">🔥 能量</td>
+                        <td style="padding:8px;text-align:center;">${planEnergy} kcal</td>
+                        <td style="padding:8px;text-align:center;">${actualEnergy} kcal</td>
+                        <td style="padding:8px;text-align:center;">${diffStr(planEnergy, actualEnergy)}</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid #f0f0f0;">
+                        <td style="padding:8px;font-weight:600;">🥩 蛋白质</td>
+                        <td style="padding:8px;text-align:center;">${planMacros.protein.grams || 0}g</td>
+                        <td style="padding:8px;text-align:center;">${actual.protein || 0}g</td>
+                        <td style="padding:8px;text-align:center;">${diffStr(planMacros.protein.grams, actual.protein)}</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid #f0f0f0;">
+                        <td style="padding:8px;font-weight:600;">🥑 脂肪</td>
+                        <td style="padding:8px;text-align:center;">${planMacros.fat.grams || 0}g</td>
+                        <td style="padding:8px;text-align:center;">${actual.fat || 0}g</td>
+                        <td style="padding:8px;text-align:center;">${diffStr(planMacros.fat.grams, actual.fat)}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding:8px;font-weight:600;">🍚 碳水</td>
+                        <td style="padding:8px;text-align:center;">${planMacros.carb.grams || 0}g</td>
+                        <td style="padding:8px;text-align:center;">${actual.carb || 0}g</td>
+                        <td style="padding:8px;text-align:center;">${diffStr(planMacros.carb.grams, actual.carb)}</td>
+                    </tr>
+                </tbody>
+            </table>
+            <div style="text-align:center;">
+                <button class="btn-primary" onclick="this.closest('.checkin-overlay').remove(); autoGenerateDailyPlan();">
+                    ✅ 知道了，刷新方案
+                </button>
+            </div>
+        </div>
+    `;
+
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) {
+            overlay.remove();
+            autoGenerateDailyPlan();
+        }
+    });
+
+    document.body.appendChild(overlay);
 }
 
 /**
@@ -2924,6 +3047,222 @@ function calculate() {
     // 跳转到方案生成页（带或不带问卷数据）
     if (typeof showResultPage === 'function') {
         showResultPage(intake);
+    }
+}
+// ============================================
+// 自动生成每日方案（登录后 / 点击计算器时自动触发）
+// ============================================
+
+/**
+ * 自动生成今日营养方案
+ * 读取 localStorage 缓存的个人信息 + 档位偏好
+ */
+function autoGenerateDailyPlan() {
+    const container = document.getElementById('dailyPlanContainer');
+    if (!container) return;
+
+    const info = loadBasicInfo();
+    const tier = loadTierPreference();
+    const calcBtn = document.getElementById('calculateBtn');
+    if (calcBtn) calcBtn.style.display = '';
+
+    // 无信息 → 显示引导
+    if (!info || !info.height || !info.weight) {
+        container.innerHTML = `
+        <div class="card plan-hint-card" style="text-align:center;padding:40px 20px;">
+            <p style="font-size:2rem;margin-bottom:12px;">📋</p>
+            <p style="font-size:1.1rem;color:var(--text);margin-bottom:8px;">请先填写基本信息</p>
+            <p style="color:var(--text-light);margin-bottom:16px;">在设置页填写身高、体重等信息后，系统将自动生成您的个性化方案</p>
+            <button class="btn-primary" onclick="showSettings()">去设置页填写 →</button>
+        </div>`;
+        return;
+    }
+
+    // 有信息但无档位 → 引导选档位
+    if (!tier || !tier.ratio) {
+        container.innerHTML = `
+        <div class="card plan-hint-card" style="text-align:center;padding:40px 20px;">
+            <p style="font-size:2rem;margin-bottom:12px;">🎯</p>
+            <p style="font-size:1.1rem;color:var(--text);margin-bottom:8px;">请选择低碳水档位</p>
+            <p style="color:var(--text-light);margin-bottom:16px;">三种方案可选：控制型 / 温和型 / 生酮型</p>
+            <button class="btn-primary" onclick="showResultPage(null)">选择档位 →</button>
+        </div>`;
+        return;
+    }
+
+    try {
+        // 计算 TDEE
+        const xiaResult = calculateTDEE_XiaMeng(info.height, info.weight, info.age, info.activity);
+        const bmr = calculateBMR(info.gender, info.age, info.height, info.weight);
+
+        // 能量补偿
+        const compensation = getTodayCompensation(xiaResult.tdee);
+        const adjustedTDEE = xiaResult.tdee + compensation;
+        const macros = calculateDailyMacros(adjustedTDEE, tier.ratio);
+
+        // 保存到全局 users（供打卡/历史等功能引用）
+        users[currentUser] = {
+            ...users[currentUser],
+            ...info,
+            xiaResult,
+            macroRatios: tier.ratio
+        };
+
+        // 生成分餐方案
+        const mealPlan = generateMealPlan(macros);
+
+        // 保存到历史
+        savePlanToHistory(mealPlan);
+
+        // 隐藏旧的"生成方案"按钮（自动生成不需要手动点击）
+        if (calcBtn) calcBtn.style.display = 'none';
+
+        // 渲染到页面
+        renderDailyPlan(info, xiaResult, bmr, macros, mealPlan, compensation, tier);
+
+        // 渲染矿物质维生素达标率
+        if (typeof renderMVDashboard === 'function' && mealPlan) {
+            renderMVDashboard(mealPlan, users[currentUser]);
+        }
+
+        // 检查昨日是否需要打卡（自动弹窗提醒）
+        tryCheckYesterdayCheckin();
+    } catch (e) {
+        console.warn('autoGenerateDailyPlan 失败:', e);
+        if (calcBtn) calcBtn.style.display = '';
+        container.innerHTML = `<div class="card plan-hint-card" style="text-align:center;padding:24px;">
+            <p>⚠️ 方案生成失败，请检查信息设置</p>
+            <button class="btn-primary" onclick="showSettings()">检查设置</button>
+        </div>`;
+    }
+}
+
+/**
+ * 检查昨日是否需要打卡，需要则自动弹窗
+ * 在自动生成今日方案后调用
+ */
+function tryCheckYesterdayCheckin() {
+    try {
+        const yesterday = getYesterdayStr();
+        const yesterdayHistory = getDayHistory(yesterday);
+        if (!isCheckedIn(yesterday) && yesterdayHistory && yesterdayHistory.plan) {
+            // 延迟弹窗，等今日方案渲染完再弹出
+            setTimeout(() => {
+                showCheckInPopup(yesterday, yesterdayHistory);
+            }, 500);
+        }
+    } catch (e) {
+        console.warn('tryCheckYesterdayCheckin 失败:', e);
+    }
+}
+
+/**
+ * 在每日方案容器中渲染完整的营养方案
+ */
+function renderDailyPlan(info, xiaResult, bmr, macros, mealPlan, compensation, tier) {
+    const container = document.getElementById('dailyPlanContainer');
+    if (!container) return;
+
+    const weekDays = ['周日','周一','周二','周三','周四','周五','周六'];
+    const now = new Date();
+    const dateLabel = `${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日 ${weekDays[now.getDay()]}`;
+    const profileName = tier.profileName || '自定义';
+    const bmiVal = calculateBMI(info.height, info.weight);
+    const bmiInfo = getBMIStatus(bmiVal);
+
+    // 能量补偿提示
+    const compHtml = compensation !== 0
+        ? `<div class="msg-warning" style="margin-bottom:12px;padding:8px 12px;font-size:0.9rem;border-radius:8px;background:#fff3cd;border:1px solid #ffc107;">
+            ${compensation > 0 ? '🔋 能量补偿：' : '⚖️ 能量平衡：'}今日目标 ${xiaResult.tdee + compensation} kcal（${compensation > 0 ? '上调' : '下调'} ${Math.abs(compensation)} kcal）
+           </div>`
+        : '';
+
+    container.innerHTML = `
+    <div class="card daily-plan-card" style="margin-top:16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
+            <h3 style="margin:0;">🍽️ 今日方案 · ${dateLabel}</h3>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                <span class="daily-plan-tier-badge" style="font-size:0.8rem;padding:3px 10px;border-radius:20px;background:var(--primary-light, #e8f5e9);color:var(--primary);">
+                    ${profileName}
+                </span>
+                <button class="btn-secondary btn-sm" onclick="showResultPage(null)" style="font-size:0.8rem;padding:4px 12px;">🔄 重新生成</button>
+            </div>
+        </div>
+
+        ${compHtml}
+
+        <!-- 概要行 -->
+        <div class="result-summary" style="margin-bottom:12px;">
+            <div class="summary-item">
+                <span class="summary-label">BMI</span>
+                <span class="summary-value">${bmiVal.toFixed(1)}</span>
+                <span class="summary-status ${bmiInfo.className}">${bmiInfo.status}</span>
+            </div>
+            <div class="summary-item">
+                <span class="summary-label">BMR</span>
+                <span class="summary-value">${Math.round(bmr)}</span>
+                <span class="summary-unit">kcal/天</span>
+            </div>
+            <div class="summary-item highlight">
+                <span class="summary-label">TDEE</span>
+                <span class="summary-value">${xiaResult.tdee}</span>
+                <span class="summary-unit">kcal/天</span>
+            </div>
+        </div>
+
+        <!-- 三大营养素 -->
+        <h4 style="margin:0 0 8px 0;">🥩 每日营养目标</h4>
+        <div class="macro-display" style="margin-bottom:12px;">
+            <div class="macro-item protein">
+                <div class="macro-circle"><span class="macro-percent">${macros.protein.percent}%</span></div>
+                <div class="macro-info">
+                    <strong>蛋白质</strong>
+                    <span>${macros.protein.grams}g</span>
+                    <small>${macros.protein.kcal} kcal</small>
+                </div>
+            </div>
+            <div class="macro-item fat">
+                <div class="macro-circle"><span class="macro-percent">${macros.fat.percent}%</span></div>
+                <div class="macro-info">
+                    <strong>脂肪</strong>
+                    <span>${macros.fat.grams}g</span>
+                    <small>${macros.fat.kcal} kcal</small>
+                </div>
+            </div>
+            <div class="macro-item carb">
+                <div class="macro-circle"><span class="macro-percent">${macros.carb.percent}%</span></div>
+                <div class="macro-info">
+                    <strong>碳水</strong>
+                    <span>${macros.carb.grams}g</span>
+                    <small>${macros.carb.kcal} kcal</small>
+                </div>
+            </div>
+            <div class="macro-item water">
+                <div class="macro-circle" style="font-size:1.8rem;">💧</div>
+                <div class="macro-info">
+                    <strong>水</strong>
+                    <span>1200~1500ml</span>
+                    <small>白开水、茶水最佳</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- 分餐方案 -->
+        <div id="mealPlanDaily"></div>
+
+        <!-- 注意事项 -->
+        <div id="warningsDaily"></div>
+    </div>`;
+
+    // 渲染分餐方案表格
+    const mealPlanEl = document.getElementById('mealPlanDaily');
+    if (mealPlanEl && typeof renderMealPlanTable === 'function') {
+        mealPlanEl.innerHTML = renderMealPlanTable(mealPlan);
+    }
+
+    // 渲染注意事项
+    if (typeof renderWarnings === 'function') {
+        renderWarnings(users[currentUser], { bmr, tdee: xiaResult.tdee, macros }, 'warningsDaily');
     }
 }
 

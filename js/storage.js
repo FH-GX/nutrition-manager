@@ -91,6 +91,35 @@ function loadBasicInfo() {
 }
 
 // ============================================
+// 用户选择的档位偏好（用于登录后自动生成方案）
+// ============================================
+
+const TIER_KEY = 'tier_preference';
+
+/**
+ * 保存用户选择的低碳水档位 + 配比
+ * @param {object} data - { ratio: {carb, protein, fat, profileName}, profileIndex: number, profileName: string }
+ */
+function saveTierPreference(data) {
+    storeData(TIER_KEY, data);
+}
+
+/**
+ * 读取用户保存的档位偏好
+ * @returns {object|null} { ratio: {carb, protein, fat, profileName}, profileIndex, profileName }
+ */
+function loadTierPreference() {
+    return loadData(TIER_KEY, null);
+}
+
+/**
+ * 清除档位偏好
+ */
+function clearTierPreference() {
+    removeData(TIER_KEY);
+}
+
+// ============================================
 // 用户等级
 // ============================================
 
