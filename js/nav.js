@@ -8,6 +8,7 @@ const NAV_ITEMS = {
     survey:     { icon: '📋', label: '填写问卷',   show: 'showSurvey' },
     checkin:    { icon: '📅', label: '每日打卡',   show: 'showCheckInPage' },
     history:    { icon: '📊', label: '我的记录',   show: 'showHistory' },
+    learn:      { icon: '📚', label: '扫盲学习',   show: 'showLearnPage' },
     foodDb:     { icon: '🍎', label: '食物库',     show: 'showFoodDatabase' },
     settings:   { icon: '⚙️', label: '设置',       show: 'showSettings' },
 };

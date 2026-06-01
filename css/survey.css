@@ -369,19 +369,21 @@ header {
     display: flex;
     gap: 4px;
     margin-bottom: 20px;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;   /* 强制一行，不折行 */
+    overflow-x: auto;    /* 内容过多时横向滚动而不折行 */
 }
 
 .nav-btn {
-    padding: 10px 20px;
+    padding: 8px 12px;
     border: 2px solid var(--primary);
     background: white;
     color: var(--primary);
     border-radius: 10px 10px 0 0;
     cursor: pointer;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     transition: all 0.2s;
-    flex: 1;
+    flex: 0 0 auto;      /* 不拉伸，不压缩，按内容宽度 */
+    white-space: nowrap; /* 按钮内文字不折行 */
     text-align: center;
 }
 
@@ -788,11 +790,14 @@ header {
     }
 
     .nav-tabs {
-        flex-direction: column;
+        /* 小屏仍然一行横排，滚动查看 */
+        flex-direction: row;
     }
 
     .nav-btn {
         border-radius: 8px;
+        padding: 7px 10px;
+        font-size: 0.75rem;
     }
 }
 

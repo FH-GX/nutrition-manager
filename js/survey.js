@@ -705,7 +705,7 @@ function showIntakeAnalysis(intake) {
 // ============================================
 
 function showSurvey() {
-    renderNav('nav-surveySection', 'survey', ['calculator', 'survey', 'checkin', 'history', 'foodDb', 'settings']);
+    renderNav('nav-surveySection', 'survey', ['calculator', 'survey', 'checkin', 'history', 'learn', 'foodDb', 'settings']);
     hideAllSections();
     $show('surveySection');
     // 每次显示都重新渲染问卷内容，确保表格有数据
@@ -757,6 +757,15 @@ function showCheckInPage() {
     setTimeout(() => {
         showCheckInPopup(yesterday, yesterdayHistory);
     }, 200);
+}
+
+/**
+ * 扫盲学习台入口
+ * 跳转到学习模式（全屏显示知识卡片）
+ */
+function showLearnPage() {
+    // 跳转到学习模式（?mode=learn 会触发 initLearningMode）
+    window.location.href = window.location.pathname + '?mode=learn';
 }
 
 // ============================================
