@@ -738,10 +738,12 @@ function showCalculator() {
     // 恢复打卡页可能隐藏的元素
     const inputSection = document.getElementById('inputSection');
     if (inputSection) inputSection.style.display = '';
-    const resultSection = document.getElementById('resultSection');
-    if (resultSection) resultSection.style.display = '';
     const dailyPlanContainer = document.getElementById('dailyPlanContainer');
     if (dailyPlanContainer) dailyPlanContainer.style.display = '';
+    // resultSection 是旧的手动计算结果区，自动方案数据在 dailyPlanContainer 里
+    // 不需要恢复显示，避免露出空的 "--" 数据
+    const resultSection = document.getElementById('resultSection');
+    if (resultSection) resultSection.style.display = 'none';
     // 移除打卡状态卡片（如果存在）
     const oldCard = document.getElementById('checkinStatusCard');
     if (oldCard) oldCard.remove();
