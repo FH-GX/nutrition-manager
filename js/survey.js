@@ -168,7 +168,7 @@ async function registerUser() {
     // 新用户注册，清理 localStorage 中旧用户的数据缓存
     // 避免上一个用户的基本信息和档位数据污染新用户
     if (typeof removeData === 'function') {
-        removeData('basicInfo');
+        removeData('basic_info');   // BASIC_INFO 常量值，与 storage.js 保持一致
         removeData(TIER_KEY);
     }
 
@@ -213,7 +213,7 @@ async function loginUser() {
     // 账号切换登录，清理 localStorage 中旧用户的数据缓存
     // 云端数据会通过 syncAllFromSupabase 重新拉取
     if (typeof removeData === 'function') {
-        removeData('basicInfo');
+        removeData('basic_info');   // BASIC_INFO 常量值，与 storage.js 保持一致
         removeData(TIER_KEY);
     }
 
