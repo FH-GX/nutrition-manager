@@ -1076,4 +1076,13 @@ document.addEventListener('DOMContentLoaded', () => {
     $('registerBtn')?.addEventListener('click', registerUser);
     $('loginBtn')?.addEventListener('click', loginUser);
 
+    // 兜底：500ms后如果"我的档案"还是空的，强制刷新一次
+    setTimeout(() => {
+        const el = document.getElementById('basicInfoSummary');
+        if (el && (!el.innerHTML || el.innerHTML.trim() === '')) {
+            if (typeof renderBasicInfoSummary === 'function') {
+                renderBasicInfoSummary();
+            }
+        }
+    }, 500);
 });
