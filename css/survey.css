@@ -60,6 +60,7 @@ header {
     font-size: 0.9rem;
 }
 
+
 .header-logout-btn {
     padding: 6px 14px;
     border: 1px solid var(--danger);
@@ -398,16 +399,6 @@ header {
     font-weight: bold;
 }
 
-.nav-btn.nav-btn-logout {
-    border-color: var(--danger);
-    color: var(--danger);
-    margin-left: auto;
-}
-
-.nav-btn.nav-btn-logout:hover {
-    background: var(--danger);
-    color: white;
-}
 
 /* 结果页用户信息 */
 .result-user-info {
@@ -528,16 +519,6 @@ header {
     background: var(--primary);
     color: white;
     font-weight: bold;
-}
-
-.auth-tab-btn.logout-btn {
-    border-color: var(--danger);
-    color: var(--danger);
-}
-
-.auth-tab-btn.logout-btn:hover {
-    background: var(--danger);
-    color: white;
 }
 
 .auth-form-group {

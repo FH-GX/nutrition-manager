@@ -279,7 +279,7 @@ function clone(obj) {
 
 /** 所有需要 show/hide 控制的主 section ID 列表 */
 const ALL_SECTIONS = [
-    'authSection', 'calculatorSection', 'surveySection',
+    'authSection', 'calculatorSection', 'planSection', 'surveySection',
     'resultPageSection', 'historySection', 'settingsSection', 'foodDbSection'
 ];
 

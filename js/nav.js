@@ -5,6 +5,7 @@
 
 const NAV_ITEMS = {
     calculator: { icon: '🧮', label: '营养计算器', show: 'showCalculator' },
+    plan:       { icon: '🍽️', label: '每日方案',   show: 'showPlanPage' },
     survey:     { icon: '📋', label: '填写问卷',   show: 'showSurvey' },
     checkin:    { icon: '📅', label: '每日打卡',   show: 'showCheckInPage' },
     history:    { icon: '📊', label: '我的记录',   show: 'showHistory' },
@@ -17,10 +18,10 @@ const NAV_ITEMS = {
  * 渲染导航栏到指定容器
  * @param {string} containerId 目标容器 ID
  * @param {string} activeKey 当前活跃的 tab key
- * @param {string[]} [customKeys] 可选，自定义按钮顺序。不传则使用默认顺序
+ * @param {string[]} [customKeys] 可选，自定义按钮顺序。不传则根据数据状态自动选择
  */
 function renderNav(containerId, activeKey, customKeys) {
-    const keys = customKeys || ['calculator', 'checkin', 'history', 'foodDb', 'settings'];
+    const keys = customKeys || getDefaultNavKeys();
     const html = keys.map(key => {
         const item = NAV_ITEMS[key];
         if (!item) return '';
@@ -29,4 +30,23 @@ function renderNav(containerId, activeKey, customKeys) {
     }).join('');
     const container = document.getElementById(containerId);
     if (container) container.innerHTML = html;
+}
+
+/**
+ * 根据数据状态返回默认导航按钮顺序
+ * 已有数据 → 隐藏营养计算器（以每日方案为主入口）
+ * 新用户 → 显示营养计算器
+ */
+function getDefaultNavKeys() {
+    let info = null;
+    let tier = null;
+    try {
+        if (typeof loadBasicInfo === 'function') info = loadBasicInfo();
+        if (typeof loadTierPreference === 'function') tier = loadTierPreference();
+    } catch(e) {}
+    const hasData = info && info.height && info.weight && tier && tier.ratio;
+    if (hasData) {
+        return ['plan', 'checkin', 'history', 'foodDb', 'settings'];
+    }
+    return ['calculator', 'checkin', 'history', 'foodDb', 'settings'];
 }
