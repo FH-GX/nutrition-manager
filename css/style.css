@@ -1674,6 +1674,16 @@ footer p {
     justify-content: center;
 }
 
+/* 手机端：三色条去掉 overflow 和最小宽度限制，防止标签被裁切 */
+@media (max-width: 600px) {
+    .profile-macro-bar {
+        overflow: visible;
+    }
+    .macro-bar-protein {
+        min-width: 0;
+    }
+}
+
 .profile-card-suitable {
     display: flex;
     align-items: center;
