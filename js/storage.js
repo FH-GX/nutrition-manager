@@ -366,6 +366,34 @@ function initRegisterCode() {
     }
 }
 
+/** 每个验证码最多可注册账号数 */
+const MAX_REG_PER_CODE = 20;
+
+/**
+ * 获取验证码已注册数量
+ */
+function getRegCodeUsage(code) {
+    try {
+        return parseInt(localStorage.getItem('nutri_regcode_usage_' + code)) || 0;
+    } catch { return 0; }
+}
+
+/**
+ * 递增验证码使用次数
+ */
+function incrementRegCodeUsage(code) {
+    const count = getRegCodeUsage(code) + 1;
+    localStorage.setItem('nutri_regcode_usage_' + code, String(count));
+    return count;
+}
+
+/**
+ * 获取验证码剩余可用次数
+ */
+function getRegCodeRemaining(code) {
+    return Math.max(0, MAX_REG_PER_CODE - getRegCodeUsage(code));
+}
+
 // ============================================
 // 饮食问卷数据
 // ============================================

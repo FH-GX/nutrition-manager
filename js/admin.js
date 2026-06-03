@@ -911,6 +911,21 @@ function loadRegCodeSetting() {
     if (!codeInput) return;
     const currentCode = localStorage.getItem('nutri_register_code') || '0000';
     codeInput.value = currentCode;
+    // 显示使用情况
+    updateCodeUsageDisplay(currentCode);
+}
+
+/**
+ * 更新验证码使用情况显示
+ */
+function updateCodeUsageDisplay(code) {
+    const el = document.getElementById('adminCodeUsage');
+    if (!el) return;
+    const used = (typeof getRegCodeUsage === 'function') ? getRegCodeUsage(code) : 0;
+    const max = (typeof MAX_REG_PER_CODE !== 'undefined') ? MAX_REG_PER_CODE : 20;
+    const remaining = Math.max(0, max - used);
+    const color = remaining > 5 ? 'var(--text-light)' : (remaining > 0 ? '#e65100' : '#c62828');
+    el.innerHTML = `已用 <strong>${used}</strong> / ${max} 个名额，剩余 <strong style="color:${color};">${remaining}</strong> 个`;
 }
 
 /**
@@ -924,7 +939,13 @@ function saveRegCode() {
         showAdminToast('请输入验证码', 'error');
         return;
     }
+    const oldCode = localStorage.getItem('nutri_register_code') || '0000';
     localStorage.setItem('nutri_register_code', code);
+    // 如果换了新验证码，旧码的使用记录保留审计，新码从0开始
+    if (code !== oldCode) {
+        localStorage.removeItem('nutri_regcode_usage_' + code);
+    }
+    updateCodeUsageDisplay(code);
     showAdminToast(`✅ 注册验证码已更新为「${code}」`, 'success');
 }
 

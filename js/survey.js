@@ -149,6 +149,13 @@ async function registerUser() {
         return;
     }
 
+    // 验证码使用次数限制
+    if (typeof getRegCodeRemaining === 'function' && getRegCodeRemaining(code) <= 0) {
+        $html('authError', '此验证码已达使用上限（' + (typeof MAX_REG_PER_CODE !== 'undefined' ? MAX_REG_PER_CODE : 20) + '个），请联系管理员');
+        $show('authError');
+        return;
+    }
+
     $html('authError', '⏳ 注册中...');
     $show('authError');
 
@@ -159,6 +166,11 @@ async function registerUser() {
         $html('authError', result.error || '注册失败');
         $show('authError');
         return;
+    }
+
+    // 递增验证码使用次数
+    if (typeof incrementRegCodeUsage === 'function') {
+        incrementRegCodeUsage(code);
     }
 
     // 暂存当前用户到 localStorage（兼容现有数据层）
