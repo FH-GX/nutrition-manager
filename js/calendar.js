@@ -554,13 +554,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const delta = e.deltaY;
 
+        // 如果页面还能继续滚动，不翻月（优先自然滚动）
+        if (delta > 0) {
+            // 向下滚：页面底部还有内容 → 让页面滚动，不翻月
+            if (window.innerHeight + window.scrollY < document.body.scrollHeight - 5) return;
+        } else if (delta < 0) {
+            // 向上滚：页面还没到顶部 → 让页面滚动，不翻月
+            if (window.scrollY > 5) return;
+        }
+
         // 如果目标在详情区域内部，不翻月
         const detail = container.querySelector('.calendar-detail');
         if (detail && detail.contains(e.target)) return;
         // 如果目标在滚动区域内，不翻月
         const scrollArea = container.querySelector('.calendar-scroll-area');
         if (scrollArea && scrollArea.contains(e.target) && scrollArea.scrollHeight > scrollArea.clientHeight) {
-            // 如果已经滚到顶部或底部，才允许翻月
             if (delta > 0 && scrollArea.scrollTop < scrollArea.scrollHeight - scrollArea.clientHeight - 2) return;
             if (delta < 0 && scrollArea.scrollTop > 2) return;
         }

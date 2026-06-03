@@ -392,3 +392,99 @@ function saveSurveyData(username, data) {
 function clearTodayEatenCurrent() {
     localStorage.removeItem('today_eaten_current');
 }
+
+// ============================================
+// 显示名
+// ============================================
+
+/**
+ * 获取要展示的用户名（优先使用基本信息中的姓名，没有则用邮箱前缀）
+ */
+function getDisplayName() {
+    try {
+        const info = loadBasicInfo();
+        if (info && info.name) return info.name;
+    } catch(e) {}
+    const email = getCurrentSessionUser();
+    if (!email) return '用户';
+    return email.split('@')[0];
+}
+
+// ============================================
+// 系统消息通知
+// ============================================
+
+const NOTIF_PREFIX = 'nutri_notifications_';
+const MAX_NOTIF = 50;
+
+/**
+ * 添加一条系统通知
+ * @param {string} type - 'info' | 'success' | 'warning'
+ * @param {string} icon - 显示图标
+ * @param {string} title - 标题
+ * @param {string} [detail] - 详情
+ */
+function addNotification(type, icon, title, detail) {
+    const email = getCurrentSessionUser();
+    if (!email) return;
+    const key = NOTIF_PREFIX + email;
+    const list = JSON.parse(localStorage.getItem(key) || '[]');
+    list.unshift({
+        id: Date.now() + Math.random(),
+        type: type || 'info',
+        icon: icon || 'ℹ️',
+        title: title || '',
+        detail: detail || '',
+        time: new Date().toLocaleString('zh-CN'),
+        read: false
+    });
+    if (list.length > MAX_NOTIF) list.length = MAX_NOTIF;
+    localStorage.setItem(key, JSON.stringify(list));
+    // 刷新角标
+    if (typeof updateNotificationBadge === 'function') {
+        updateNotificationBadge();
+    }
+}
+
+/**
+ * 获取通知列表（最新在前）
+ */
+function getNotifications() {
+    const email = getCurrentSessionUser();
+    if (!email) return [];
+    const key = NOTIF_PREFIX + email;
+    try {
+        return JSON.parse(localStorage.getItem(key) || '[]');
+    } catch { return []; }
+}
+
+/**
+ * 标记所有通知为已读
+ */
+function markAllNotifRead() {
+    const email = getCurrentSessionUser();
+    if (!email) return;
+    const key = NOTIF_PREFIX + email;
+    const list = getNotifications();
+    list.forEach(n => n.read = true);
+    localStorage.setItem(key, JSON.stringify(list));
+}
+
+/**
+ * 获取未读通知数量
+ */
+function getUnreadNotifCount() {
+    return getNotifications().filter(n => !n.read).length;
+}
+
+/**
+ * 刷新通知角标
+ */
+function updateNotificationBadge() {
+    const count = getUnreadNotifCount();
+    const badge = document.getElementById('notifBadge');
+    if (badge) {
+        badge.textContent = count > 99 ? '99+' : count;
+        badge.style.display = count > 0 ? 'flex' : 'none';
+    }
+}

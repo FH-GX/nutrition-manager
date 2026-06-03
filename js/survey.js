@@ -93,6 +93,13 @@ function updateAccountDatalist() {
  * test@163.com → test
  */
 function getDisplayName(email) {
+    // 优先使用基本信息中的姓名
+    if (email) {
+        try {
+            const info = (typeof loadBasicInfo === 'function') ? loadBasicInfo() : null;
+            if (info && info.name) return info.name;
+        } catch(e) {}
+    }
     if (!email || !email.includes('@')) return email || '';
     return email.split('@')[0];
 }
@@ -173,6 +180,10 @@ async function registerUser() {
     }
 
     doLogin(name);
+    // 注册通知
+    if (typeof addNotification === 'function') {
+        addNotification('success', '🎉', '欢迎加入！', '账号已创建');
+    }
 
     // 新用户无需同步云端数据（Supabase里没有）
     // doLogin 已调用 renderBasicInfoSummary()（新用户显示"暂未设置"）
@@ -211,6 +222,10 @@ async function loginUser() {
     setCurrentSessionUser(name);
 
     doLogin(name);
+    // 登录通知
+    if (typeof addNotification === 'function') {
+        addNotification('info', '👋', '登录成功', '欢迎回来');
+    }
 
     // 从 Supabase 拉取云端数据到本地（跨设备同步）
     // doLogin 已调用 renderBasicInfoSummary()，sync 完成后 finally 会再次刷新
@@ -966,6 +981,89 @@ function showToast(message, type) {
         setTimeout(() => toast.remove(), 300);
     }, 2500);
 }
+
+// ============================================
+// 消息通知面板
+// ============================================
+
+/**
+ * 切换通知面板显示/隐藏
+ */
+function toggleNotifications() {
+    const panel = document.getElementById('notifPanel');
+    if (!panel) return;
+
+    if (panel.style.display !== 'none') {
+        panel.style.display = 'none';
+        return;
+    }
+
+    renderNotifPanel();
+    panel.style.display = 'flex';
+    updateNotifBadge();
+}
+
+/**
+ * 渲染通知列表
+ */
+function renderNotifPanel() {
+    const list = document.getElementById('notifList');
+    if (!list) return;
+
+    const notifs = (typeof getNotifications === 'function') ? getNotifications() : [];
+    if (notifs.length === 0) {
+        list.innerHTML = '<div class="notif-empty">暂无消息</div>';
+        return;
+    }
+
+    list.innerHTML = notifs.map(n => `
+        <div class="notif-item${n.read ? '' : ' unread'}" onclick="markNotifRead(${n.id})">
+            <div class="notif-item-icon">${n.icon || 'ℹ️'}</div>
+            <div class="notif-item-body">
+                <div class="notif-item-title">${n.title}</div>
+                ${n.detail ? `<div class="notif-item-detail">${n.detail}</div>` : ''}
+                <div class="notif-item-time">${n.time || ''}</div>
+            </div>
+            ${n.read ? '' : '<div class="notif-item-dot"></div>'}
+        </div>
+    `).join('');
+}
+
+/**
+ * 标记单条通知为已读
+ */
+function markNotifRead(id) {
+    const email = getCurrentSessionUser();
+    if (!email) return;
+    const key = 'nutri_notifications_' + email;
+    const list = JSON.parse(localStorage.getItem(key) || '[]');
+    const item = list.find(n => n.id === id);
+    if (item) item.read = true;
+    localStorage.setItem(key, JSON.stringify(list));
+    renderNotifPanel();
+    updateNotifBadge();
+}
+
+/**
+ * 更新通知角标
+ */
+function updateNotifBadge() {
+    if (typeof updateNotificationBadge === 'function') {
+        updateNotificationBadge();
+    }
+}
+
+/**
+ * 点击页面空白处关闭通知面板
+ */
+document.addEventListener('click', function(e) {
+    const panel = document.getElementById('notifPanel');
+    const btn = document.getElementById('notifBtn');
+    if (!panel || !btn) return;
+    if (panel.style.display === 'none') return;
+    if (panel.contains(e.target) || btn.contains(e.target)) return;
+    panel.style.display = 'none';
+});
 
 // ============================================
 // 初始化

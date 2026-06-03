@@ -19,6 +19,10 @@
             </div>
             <div class="header-right" id="headerRight" style="display:none;">
                 <span class="header-user" id="headerUserName"></span>
+                <button class="header-icon-btn" id="notifBtn" onclick="toggleNotifications()" title="消息" style="position:relative;">
+                    🔔
+                    <span class="notif-badge" id="notifBadge">0</span>
+                </button>
                 <button class="header-icon-btn" onclick="showSettings()" title="设置">⚙️</button>
                 <button class="header-logout-btn" onclick="logoutUser()">🚪 退出登录</button>
             </div>
@@ -483,6 +487,19 @@
                 <h2>📚 扫盲学习台</h2>
                 <p class="settings-desc">管理员精选的低碳水饮食知识，全屏沉浸式学习。</p>
                 <button class="btn-primary" onclick="showLearnPage()" style="margin-top:8px;">进入学习模式 →</button>
+            </div>
+        </div>
+
+        <!-- ============================================
+        消息通知面板
+        ============================================ -->
+        <div class="notif-panel" id="notifPanel" style="display:none;">
+            <div class="notif-panel-header">
+                <span class="notif-panel-title">📬 消息中心</span>
+                <button class="notif-panel-clear" onclick="markAllNotifRead();renderNotifPanel();updateNotifBadge();">全部已读</button>
+            </div>
+            <div class="notif-panel-list" id="notifList">
+                <div class="notif-empty">暂无消息</div>
             </div>
         </div>
 
