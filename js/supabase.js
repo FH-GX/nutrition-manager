@@ -438,3 +438,87 @@ async function changePassword(newPassword) {
         return { success: false, error: err.message };
     }
 }
+
+// ============================================
+// 验证码使用次数（服务器端，跨设备共享）
+// ============================================
+
+/**
+ * 从服务器获取验证码已使用次数
+ * @param {string} code - 验证码
+ * @returns {Promise<number>}
+ */
+async function getRegCodeUsageFromServer(code) {
+    try {
+        const sb = getSupabase();
+        if (!sb) {
+            // 兜底：读 localStorage
+            try { return parseInt(localStorage.getItem('nutri_regcode_usage_' + code)) || 0; }
+            catch { return 0; }
+        }
+        const { data, error } = await sb
+            .from('reg_code_usage')
+            .select('used_count')
+            .eq('code', code)
+            .maybeSingle();
+        if (error) throw error;
+        return data ? data.used_count : 0;
+    } catch (err) {
+        console.warn('读取验证码使用次数失败，使用localStorage兜底:', err.message);
+        try { return parseInt(localStorage.getItem('nutri_regcode_usage_' + code)) || 0; }
+        catch { return 0; }
+    }
+}
+
+/**
+ * 从服务器获取验证码剩余可用次数
+ * @param {string} code - 验证码
+ * @returns {Promise<number>}
+ */
+async function getRegCodeRemainingFromServer(code) {
+    const used = await getRegCodeUsageFromServer(code);
+    return Math.max(0, 20 - used);
+}
+
+/**
+ * 在服务器递增验证码使用次数
+ * @param {string} code - 验证码
+ * @returns {Promise<number>}
+ */
+async function incrementRegCodeUsageOnServer(code) {
+    try {
+        const sb = getSupabase();
+        if (!sb) {
+            // 兜底 localStorage
+            try {
+                const c = parseInt(localStorage.getItem('nutri_regcode_usage_' + code)) || 0;
+                localStorage.setItem('nutri_regcode_usage_' + code, String(c + 1));
+                return c + 1;
+            } catch { return 0; }
+        }
+        // 查询当前次数
+        const { data: existing } = await sb
+            .from('reg_code_usage')
+            .select('used_count')
+            .eq('code', code)
+            .maybeSingle();
+        let newCount;
+        if (!existing) {
+            await sb.from('reg_code_usage').insert({ code, used_count: 1 });
+            newCount = 1;
+        } else {
+            newCount = existing.used_count + 1;
+            await sb.from('reg_code_usage').update({ used_count: newCount, updated_at: new Date().toISOString() }).eq('code', code);
+        }
+        // 同时写 localStorage 保持同步（给 admin 兜底）
+        try { localStorage.setItem('nutri_regcode_usage_' + code, String(newCount)); } catch {}
+        return newCount;
+    } catch (err) {
+        console.warn('递增验证码次数失败，使用localStorage兜底:', err.message);
+        try {
+            const c = parseInt(localStorage.getItem('nutri_regcode_usage_' + code)) || 0;
+            localStorage.setItem('nutri_regcode_usage_' + code, String(c + 1));
+            return c + 1;
+        } catch { return 0; }
+    }
+}
