@@ -538,7 +538,7 @@ function renderUserLevelList() {
  */
 function changeUserLevel(userIdx, level) {
     if (typeof saveUserLevel === 'function') {
-        saveUserLevel(userIdx, level);
+        saveUserLevel(level, userIdx);
     }
     showAdminToast(`✅ 已为用户设置等级`, 'success');
     renderUserLevelList();
@@ -637,7 +637,7 @@ async function renderUserManagement() {
  */
 function changeUserLevelFromMgt(userIdx, level) {
     if (typeof saveUserLevel === 'function') {
-        saveUserLevel(userIdx, level);
+        saveUserLevel(level, userIdx);
     }
     showAdminToast(`✅ 已为用户设置等级`, 'success');
     // 刷新两个相关页面

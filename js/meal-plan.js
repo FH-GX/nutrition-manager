@@ -138,6 +138,39 @@ const FOOD_ROTATION = {
 };
 
 // ============================================
+// 蛋白质品类映射（午晚不重复）
+// ============================================
+const PROTEIN_CATEGORIES = {
+    // 禽
+    '鸡胸肉': 'poultry',
+    '鸡腿肉': 'poultry',
+    // 畜
+    '牛肉（瘦肉）': 'livestock',
+    '猪肉（瘦肉）': 'livestock',
+    // 鱼
+    '三文鱼': 'fish',
+    '草鱼': 'fish',
+    '清蒸鱼': 'fish',
+    // 虾
+    '虾（河虾）': 'shrimp',
+    // 豆
+    '豆腐（北豆腐）': 'tofu'
+};
+
+/**
+ * 从数组中按种子选一个，排除指定品类
+ * @param {string[]} pool - 食物数组
+ * @param {number} seed - 日期种子
+ * @param {string} excludeCategory - 要排除的品类
+ * @returns {string} 选中的食物名
+ */
+function pickProteinExcludeCategory(pool, seed, excludeCategory) {
+    const filtered = pool.filter(name => PROTEIN_CATEGORIES[name] !== excludeCategory);
+    if (filtered.length === 0) return pool[seed % pool.length]; // 兜底
+    return filtered[seed % filtered.length];
+}
+
+// ============================================
 // 固定份量配置
 // ============================================
 const FIXED_PORTIONS = {
@@ -249,15 +282,17 @@ function generateMealPlan(macros) {
     // ===== 步骤1b：选择今日坚果 & 烹调油（日期哈希）=====
     const todayNutName = pickByRatio(NUT_ITEMS, hashDate());
     const todayOilName = pickByRatio(OIL_ITEMS, hashDate() + 7); // +7偏移，避免与坚果相同
+    const lunchProteinName = FOOD_ROTATION.lunchProtein[daySeed];
+    const dinnerProteinName = pickProteinExcludeCategory(FOOD_ROTATION.dinnerProtein, daySeed, PROTEIN_CATEGORIES[lunchProteinName]);
 
     const todayFoods = {
         egg: findFoodNutrition('鸡蛋（整）'),
         milk: findFoodNutrition('牛奶'),
-        lunchProtein: findFoodNutrition(FOOD_ROTATION.lunchProtein[daySeed]),
+        lunchProtein: findFoodNutrition(lunchProteinName),
         lunchVeggie: findFoodNutrition(FOOD_ROTATION.lunchVeggie[daySeed]),
         snackFruit: findFoodNutrition(FOOD_ROTATION.snackFruit[daySeed]),
         snackNuts: findFoodNutrition(todayNutName),
-        dinnerProtein: findFoodNutrition(FOOD_ROTATION.dinnerProtein[daySeed]),
+        dinnerProtein: findFoodNutrition(dinnerProteinName),
         dinnerVeggie: findFoodNutrition(FOOD_ROTATION.dinnerVeggie[daySeed]),
         breakfastGrain: findFoodNutrition(FOOD_ROTATION.breakfastGrain[daySeed]),
         lunchGrain: findFoodNutrition(FOOD_ROTATION.lunchGrain[daySeed]),
@@ -370,7 +405,7 @@ function generateMealPlan(macros) {
         macros: mealMacros.lunch,
         foods: {
             grain: { name: FOOD_ROTATION.lunchGrain[daySeed], grams: lunchGrainGrams, detail: '' },
-            protein: { name: FOOD_ROTATION.lunchProtein[daySeed], grams: FIXED_PORTIONS.lunchProtein.grams, detail: '' },
+            protein: { name: lunchProteinName, grams: FIXED_PORTIONS.lunchProtein.grams, detail: '' },
             veggie: { name: FOOD_ROTATION.lunchVeggie[daySeed], grams: FIXED_PORTIONS.lunchVeggie.grams, detail: '' },
             oil: { name: todayOilName, grams: lunchOilGrams, detail: '' }
         }
@@ -388,7 +423,7 @@ function generateMealPlan(macros) {
         macros: mealMacros.dinner,
         foods: {
             grain: { name: FOOD_ROTATION.dinnerGrain[daySeed], grams: dinnerGrainGrams, detail: '' },
-            protein: { name: FOOD_ROTATION.dinnerProtein[daySeed], grams: FIXED_PORTIONS.dinnerProtein.grams, detail: '' },
+            protein: { name: dinnerProteinName, grams: FIXED_PORTIONS.dinnerProtein.grams, detail: '' },
             veggie: { name: FOOD_ROTATION.dinnerVeggie[daySeed], grams: FIXED_PORTIONS.dinnerVeggie.grams, detail: '' },
             oil: { name: todayOilName, grams: dinnerOilGrams, detail: '' }
         }

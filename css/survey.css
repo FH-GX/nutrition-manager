@@ -771,17 +771,42 @@ header {
         grid-template-columns: 1fr;
     }
 
+    /* 顶栏：手机端隐藏用户名，按钮间隙缩小 */
+    .header-user {
+        display: none;
+    }
+    .header-right {
+        gap: 4px;
+    }
+    .header-icon-btn {
+        padding: 4px 5px;
+        font-size: 1.1rem;
+    }
+
     .nav-tabs {
-        /* 小屏仍然一行横排，滚动查看 */
         flex-direction: row;
+        gap: 3px;
     }
 
     .nav-btn {
         border-radius: 8px;
-        padding: 7px 10px;
-        font-size: 0.78rem;
-        flex: 1;
+        padding: 6px 7px;
+        font-size: 0.72rem;
+        flex: 0 0 auto;  /* 不强制等分，按内容宽度，允许容器滚动 */
         min-width: 0;
+        white-space: nowrap;
+    }
+}
+
+/* 超小屏（≤400px）导航进一步精简 */
+@media (max-width: 400px) {
+    .nav-btn {
+        padding: 5px 5px;
+        font-size: 0.68rem;
+    }
+    .container {
+        padding-left: 10px;
+        padding-right: 10px;
     }
 }
 
