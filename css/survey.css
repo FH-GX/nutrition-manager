@@ -782,6 +782,22 @@ header {
         padding: 4px 5px;
         font-size: 1.1rem;
     }
+    /* 手机端退出按钮：只显示emoji图标 */
+    .header-logout-btn {
+        padding: 4px 5px;
+        font-size: 0;
+        border: none;
+        background: none;
+    }
+    .header-logout-btn:hover {
+        background: none;
+    }
+    .header-logout-btn .logout-icon {
+        font-size: 1.2rem;
+    }
+    .header-logout-btn .logout-text {
+        display: none;
+    }
 
     .nav-tabs {
         flex-direction: row;
