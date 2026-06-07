@@ -3495,3 +3495,15 @@ footer p {
     color: var(--text-light);
     font-size: 0.8rem;
 }
+
+/* ============================================
+   版本号
+   ============================================ */
+.version-footer {
+    text-align: center;
+    font-size: 0.75rem;
+    color: var(--text-light);
+    padding: 16px 0 24px;
+    opacity: 0.6;
+    user-select: none;
+}
