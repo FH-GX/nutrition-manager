@@ -579,7 +579,7 @@ function renderMealPlanTable(plan) {
     // 构建HTML
     let html = `
     <h3 class="mp-section-title">🥗 今日分餐建议 <span class="mp-subtitle">${todayLabel}</span></h3>
-    <table class="meal-plan-table">
+    <div class="table-scroll-wrap"><table class="meal-plan-table">
         <thead>
             <tr>
                 <th class="meal-time-col">进餐时间</th>`;
@@ -606,7 +606,7 @@ function renderMealPlanTable(plan) {
         const isDash = t === '—';
         html += `<td class="${isDash ? 'cell-empty' : ''}">${t}</td>`;
     }
-    html += `</tr></tbody></table>`;
+    html += `</tr></tbody></table></div>`;
     
     // 底部营养素卡片 + 能量分配
     const pMacros = macros.protein;

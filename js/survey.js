@@ -45,11 +45,10 @@ function initAuth() {
         hideAllSections();
         $show('authSection');
 
-        // 如果有保存的密码，自动填充到表单
+        // 如果有保存的凭据，自动填充邮箱
         const saved = getSavedCredentials();
         if (saved && saved.email) {
             $val('loginName', saved.email);
-            $val('loginPassword', saved.password || '');
             const cb = $('autoLoginCheck');
             if (cb) cb.checked = true;
         }
@@ -227,9 +226,9 @@ async function loginUser() {
         return;
     }
 
-    // 保存或清除密码
+    // 保存或清除密码（仅存邮箱不存密码，token 由 Supabase 自动管理）
     if (savePwd) {
-        saveCredentials(name, password);
+        saveCredentials(name);
     } else {
         clearCredentials();
     }

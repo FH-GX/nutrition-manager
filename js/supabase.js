@@ -59,12 +59,17 @@ async function adminLogin(email, password) {
             return { success: false, error: error.message };
         }
 
-        // 检查是否为管理员（这里我们简单地检查邮箱是否匹配）
-        // 实际中可以使用专门的admin_users表
-        const userEmail = data.user?.email;
-        if (!userEmail) {
+        // 检查 user_accounts 角色是否为 admin
+        const { data: acct, error: acctErr } = await sb
+            .from('user_accounts')
+            .select('role')
+            .eq('auth_id', data.user.id)
+            .maybeSingle();
+
+        if (acctErr || !acct || acct.role !== 'admin') {
+            // 不是管理员，登出
             await sb.auth.signOut();
-            return { success: false, error: '无法获取用户信息' };
+            return { success: false, error: '无管理员权限' };
         }
 
         return { success: true, user: data.user };

@@ -317,12 +317,12 @@ function clearCurrentSessionUser() {
     localStorage.removeItem(KEY_CURRENT);
 }
 
-/** 保存登录凭据（邮箱+密码） */
-function saveCredentials(email, password) {
-    localStorage.setItem(KEY_SAVED_CREDENTIALS, JSON.stringify({ email, password }));
+/** 保存登录凭据（仅存邮箱，不存密码） */
+function saveCredentials(email) {
+    localStorage.setItem(KEY_SAVED_CREDENTIALS, JSON.stringify({ email }));
 }
 
-/** 获取保存的登录凭据，返回 {email, password} 或 null */
+/** 获取保存的登录凭据，返回 {email} 或 null */
 function getSavedCredentials() {
     try {
         const raw = localStorage.getItem(KEY_SAVED_CREDENTIALS);

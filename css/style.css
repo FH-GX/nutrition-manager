@@ -758,14 +758,32 @@ footer p {
         grid-template-columns: 1fr;
     }
     .macro-display {
-        flex-direction: column;
-        align-items: center;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 10px;
+    }
+    .macro-display .macro-item {
+        flex: 0 0 calc(50% - 10px);
+        max-width: calc(50% - 10px);
+    }
+    .macro-circle {
+        width: 62px;
+        height: 62px;
+    }
+    .macro-percent {
+        font-size: 0.9rem;
     }
     .food-exchange {
         grid-template-columns: 1fr;
     }
     .result-summary {
         grid-template-columns: 1fr;
+    }
+    .container {
+        padding: 12px 10px 32px;
+    }
+    .summary-value {
+        font-size: 1.2rem;
     }
 }
 
@@ -1892,6 +1910,25 @@ footer p {
     }
 }
 
+/* 表格横向滚动容器 */
+.table-scroll-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin: 0 -4px 10px -4px;
+    padding: 0 4px;
+}
+.table-scroll-wrap::-webkit-scrollbar {
+    height: 4px;
+}
+.table-scroll-wrap::-webkit-scrollbar-thumb {
+    background: #ddd;
+    border-radius: 2px;
+}
+.table-scroll-wrap::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+
 /* ============================================
    矿物质&维生素达标率
    ============================================ */
@@ -2558,6 +2595,15 @@ footer p {
     border-top: 1px solid var(--border);
     background: var(--bg-secondary, #f5f5f5);
     border-radius: 0 0 16px 16px;
+}
+
+/* 档位弹窗手机端单列 */
+@media (max-width: 480px) {
+    .plan-selector-cards {
+        grid-template-columns: 1fr;
+        gap: 8px;
+        padding: 8px 16px 12px;
+    }
 }
 
 /* ============================================
