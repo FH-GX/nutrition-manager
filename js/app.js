@@ -4338,10 +4338,80 @@ function saveSettingsBasicInfo() {
 
 
 // ============================================
+// 版本更新通知
+// ============================================
+const APP_VERSION = 'v1.3';
+const VERSION_LOG_KEY = 'nutri_seen_version';
+
+/**
+ * 各版本更新日志
+ * 每新增一个版本，加一条记录
+ */
+const VERSION_NOTES = {
+    'v1.3': [
+        '🛢️ 油品轮换优化——橄榄油优先，减少高ω-6菜籽油',
+        '🛢️ 三餐独立选油——不再全天一种油',
+        '🥜 坚果比例调整——增加核桃、杏仁频次',
+        '🥩 肉类轮换新增羊肉、鸭肉，三文鱼频次翻倍',
+        '🐟 新增 ω-6:ω-3 比值展示——超标时自动提醒'
+    ],
+    'v1.2': [
+        '👨‍👩‍👧‍👦 新增家庭管理功能——添加/切换家人',
+        '🔒 安全升级——数据加密存储，登录更安全',
+        '📱 手机端布局优化——更好用的触摸体验'
+    ]
+};
+
+/**
+ * 检查版本更新，有新版本时弹窗通知
+ */
+function checkVersionUpdate() {
+    const seenVersion = localStorage.getItem(VERSION_LOG_KEY);
+    if (seenVersion === APP_VERSION) return; // 已看过
+
+    const notes = VERSION_NOTES[APP_VERSION];
+    if (!notes || notes.length === 0) return;
+
+    // 组装弹窗内容
+    let noteHtml = '';
+    notes.forEach(n => {
+        noteHtml += `<div class="version-note-item">${n}</div>`;
+    });
+
+    const overlay = document.createElement('div');
+    overlay.className = 'dialog-overlay';
+    overlay.id = 'versionUpdateOverlay';
+
+    overlay.innerHTML = `
+        <div class="dialog-popup version-popup">
+            <div class="dialog-body">
+                <div class="version-popup-header">🎉 「今天，吃了吗？」</div>
+                <div class="version-popup-sub">已更新至 <strong>${APP_VERSION}</strong></div>
+                <div class="version-popup-notes">${noteHtml}</div>
+            </div>
+            <div class="dialog-actions" style="justify-content:center;">
+                <button class="btn-primary" id="versionOkBtn">知道了</button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    document.getElementById('versionOkBtn').addEventListener('click', () => {
+        localStorage.setItem(VERSION_LOG_KEY, APP_VERSION);
+        if (document.body.contains(overlay)) document.body.removeChild(overlay);
+    });
+}
+
+// ============================================
 // 事件绑定
 // ============================================
 
 document.addEventListener('DOMContentLoaded', () => {
+    // 版本更新检查
+    checkVersionUpdate();
+
+    // 计算按钮
     // 计算按钮
     document.getElementById('calculateBtn').addEventListener('click', calculate);
 

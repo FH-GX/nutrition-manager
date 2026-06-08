@@ -78,11 +78,11 @@ const FOOD_ROTATION = {
     lunchProtein: [
         '鸡胸肉',
         '牛肉（瘦肉）',
-        '豆腐（北豆腐）',
-        '虾（河虾）',
+        '羊肉（肥瘦）',
+        '三文鱼',
+        '三文鱼',
         '猪肉（瘦肉）',
-        '鸡腿肉',
-        '三文鱼'
+        '鸡腿肉'
     ],
     // 午餐蔬菜
     lunchVeggie: [
@@ -117,7 +117,7 @@ const FOOD_ROTATION = {
     ],
     // 晚餐蛋白质
     dinnerProtein: [
-        '清蒸鱼',
+        '鸭肉',
         '豆腐（北豆腐）',
         '三文鱼',
         '鸡胸肉',
@@ -144,9 +144,11 @@ const PROTEIN_CATEGORIES = {
     // 禽
     '鸡胸肉': 'poultry',
     '鸡腿肉': 'poultry',
+    '鸭肉': 'poultry',
     // 畜
     '牛肉（瘦肉）': 'livestock',
     '猪肉（瘦肉）': 'livestock',
+    '羊肉（肥瘦）': 'livestock',
     // 鱼
     '三文鱼': 'fish',
     '草鱼': 'fish',
@@ -191,19 +193,19 @@ const FIXED_PORTIONS = {
 // 坚果轮换池（按比例，日期哈希选择）
 // ============================================
 const NUT_ITEMS = [
-    { value: '核桃', ratio: 45 },
-    { value: '杏仁', ratio: 15 },
-    { value: '花生', ratio: 20 },
-    { value: '瓜子（葵花子）', ratio: 20 }
+    { value: '核桃', ratio: 50 },
+    { value: '杏仁', ratio: 25 },
+    { value: '花生', ratio: 15 },
+    { value: '瓜子（葵花子）', ratio: 10 }
 ];
 
 // ============================================
 // 油品轮换池（按比例，日期哈希选择）
 // ============================================
 const OIL_ITEMS = [
-    { value: '菜籽油', ratio: 60 },
-    { value: '橄榄油', ratio: 20 },
-    { value: '猪油', ratio: 20 }
+    { value: '橄榄油', ratio: 40 },
+    { value: '猪油', ratio: 30 },
+    { value: '菜籽油', ratio: 30 }
 ];
 
 // ============================================
@@ -281,7 +283,10 @@ function generateMealPlan(macros) {
     
     // ===== 步骤1b：选择今日坚果 & 烹调油（日期哈希）=====
     const todayNutName = pickByRatio(NUT_ITEMS, hashDate());
-    const todayOilName = pickByRatio(OIL_ITEMS, hashDate() + 7); // +7偏移，避免与坚果相同
+    // 大偏移量确保三餐独立分布在不同的 %100 区间
+    const breakfastOilName = pickByRatio(OIL_ITEMS, hashDate() + 337);
+    const lunchOilName     = pickByRatio(OIL_ITEMS, hashDate() + 773);
+    const dinnerOilName    = pickByRatio(OIL_ITEMS, hashDate() + 1307);
     const lunchProteinName = FOOD_ROTATION.lunchProtein[daySeed];
     const dinnerProteinName = pickProteinExcludeCategory(FOOD_ROTATION.dinnerProtein, daySeed, PROTEIN_CATEGORIES[lunchProteinName]);
 
@@ -379,14 +384,17 @@ function generateMealPlan(macros) {
     const dinnerOilGrams = remainingAfterBreakfast - lunchOilGrams;
     const totalOilGrams = breakfastOilGrams + lunchOilGrams + dinnerOilGrams;
 
-    // 5d：烹调油脂肪归植物
-    const oilFood = findFoodNutrition(todayOilName);
-    const oilFat = classifyFoodFat(oilFood, totalOilGrams);
+    // 5d：各餐烹调油脂肪分类（独立选油）
+    const breakfastOilFat = classifyFoodFat(findFoodNutrition(breakfastOilName), breakfastOilGrams);
+    const lunchOilFat     = classifyFoodFat(findFoodNutrition(lunchOilName),    lunchOilGrams);
+    const dinnerOilFat    = classifyFoodFat(findFoodNutrition(dinnerOilName),   dinnerOilGrams);
+    const oilFatAnimal = breakfastOilFat.animal + lunchOilFat.animal + dinnerOilFat.animal;
+    const oilFatPlant  = breakfastOilFat.plant  + lunchOilFat.plant  + dinnerOilFat.plant;
 
     const fatSources = {
-        animal: Math.round(nonOilAnimalFat + oilFat.animal),
-        plant: Math.round(nonOilPlantFat + oilFat.plant),
-        total: Math.round(nonOilTotalFat + oilFat.animal + oilFat.plant),
+        animal: Math.round(nonOilAnimalFat + oilFatAnimal),
+        plant: Math.round(nonOilPlantFat + oilFatPlant),
+        total: Math.round(nonOilTotalFat + oilFatAnimal + oilFatPlant),
         target: Math.round(totalFatTarget)
     };
     
@@ -397,7 +405,7 @@ function generateMealPlan(macros) {
             grain: { name: FOOD_ROTATION.breakfastGrain[daySeed], grams: breakfastGrainGrams, detail: '' },
             egg: { name: '鸡蛋（整）', grams: FIXED_PORTIONS.egg.grams },
             dairy: { name: '牛奶', grams: FIXED_PORTIONS.milk.grams, detail: '1杯' },
-            oil: { name: todayOilName, grams: breakfastOilGrams, detail: '' }
+            oil: { name: breakfastOilName, grams: breakfastOilGrams, detail: '' }
         }
     };
     
@@ -407,7 +415,7 @@ function generateMealPlan(macros) {
             grain: { name: FOOD_ROTATION.lunchGrain[daySeed], grams: lunchGrainGrams, detail: '' },
             protein: { name: lunchProteinName, grams: FIXED_PORTIONS.lunchProtein.grams, detail: '' },
             veggie: { name: FOOD_ROTATION.lunchVeggie[daySeed], grams: FIXED_PORTIONS.lunchVeggie.grams, detail: '' },
-            oil: { name: todayOilName, grams: lunchOilGrams, detail: '' }
+            oil: { name: lunchOilName, grams: lunchOilGrams, detail: '' }
         }
     };
     
@@ -425,14 +433,44 @@ function generateMealPlan(macros) {
             grain: { name: FOOD_ROTATION.dinnerGrain[daySeed], grams: dinnerGrainGrams, detail: '' },
             protein: { name: dinnerProteinName, grams: FIXED_PORTIONS.dinnerProtein.grams, detail: '' },
             veggie: { name: FOOD_ROTATION.dinnerVeggie[daySeed], grams: FIXED_PORTIONS.dinnerVeggie.grams, detail: '' },
-            oil: { name: todayOilName, grams: dinnerOilGrams, detail: '' }
+            oil: { name: dinnerOilName, grams: dinnerOilGrams, detail: '' }
         }
     };
     
     // 计算总计
     const totals = calculateTotals(breakfast, lunch, snack, dinner);
     
-    return { breakfast, lunch, snack, dinner, totals, macros, mealMacros, fatSources, sideCarbTotal, remainingCarb };
+    // ===== 步骤7：计算 ω-6:ω-3 比值 =====
+    function omegaFromFood(foodName, grams) {
+        if (!foodName || grams <= 0) return { o3: 0, o6: 0 };
+        const f = findFoodNutrition(foodName);
+        if (!f || !f.per100g) return { o3: 0, o6: 0 };
+        return {
+            o3: (f.per100g.omega3 || 0) / 100 * grams,
+            o6: (f.per100g.omega6 || 0) / 100 * grams
+        };
+    }
+    const omegaSources = [
+        omegaFromFood('鸡蛋（整）', FIXED_PORTIONS.egg.grams),
+        omegaFromFood('牛奶', FIXED_PORTIONS.milk.grams),
+        omegaFromFood(lunchProteinName, FIXED_PORTIONS.lunchProtein.grams),
+        omegaFromFood(FOOD_ROTATION.lunchVeggie[daySeed], FIXED_PORTIONS.lunchVeggie.grams),
+        omegaFromFood(FOOD_ROTATION.snackFruit[daySeed], FIXED_PORTIONS.snackFruit.grams),
+        omegaFromFood(todayNutName, FIXED_PORTIONS.snackNuts.grams),
+        omegaFromFood(dinnerProteinName, FIXED_PORTIONS.dinnerProtein.grams),
+        omegaFromFood(FOOD_ROTATION.dinnerVeggie[daySeed], FIXED_PORTIONS.dinnerVeggie.grams),
+        omegaFromFood(FOOD_ROTATION.breakfastGrain[daySeed], breakfastGrainGrams),
+        omegaFromFood(FOOD_ROTATION.lunchGrain[daySeed], lunchGrainGrams),
+        omegaFromFood(FOOD_ROTATION.dinnerGrain[daySeed], dinnerGrainGrams),
+        omegaFromFood(breakfastOilName, breakfastOilGrams),
+        omegaFromFood(lunchOilName, lunchOilGrams),
+        omegaFromFood(dinnerOilName, dinnerOilGrams)
+    ];
+    const totalO3 = omegaSources.reduce((s, o) => s + o.o3, 0);
+    const totalO6 = omegaSources.reduce((s, o) => s + o.o6, 0);
+    const omegaRatio = totalO3 > 0 ? +(totalO6 / totalO3).toFixed(1) : 0;
+    
+    return { breakfast, lunch, snack, dinner, totals, macros, mealMacros, fatSources, omegaRatio, sideCarbTotal, remainingCarb };
 }
 
 // ============================================
@@ -479,7 +517,7 @@ function calculateTotals(breakfast, lunch, snack, dinner) {
 function renderMealPlanTable(plan) {
     if (!plan) return '<p class="mp-empty-msg">请先计算营养方案</p>';
     
-    const { breakfast, lunch, snack, dinner, totals, macros, mealMacros, fatSources, sideCarbTotal, remainingCarb } = plan;
+    const { breakfast, lunch, snack, dinner, totals, macros, mealMacros, fatSources, omegaRatio, sideCarbTotal, remainingCarb } = plan;
     
     // 获取周几标签
     const weekDays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
@@ -635,7 +673,8 @@ function renderMealPlanTable(plan) {
             <span>🥩 动物脂肪：<strong>${fatSources.animal}g</strong>（蛋/奶/肉）</span>
             <span>🌿 植物脂肪：<strong>${fatSources.plant}g</strong>（油/坚果/蔬菜/豆制品）</span>
             <span>📊 实际总计：<strong>${fatSources.total}g</strong> / 目标 ${fatSources.target}g</span>
-        </div>`;
+        </div>
+        <div class="omega-ratio-line">${omegaRatio > 0 ? `🐟 ω-6:ω-3 = <strong>${omegaRatio}:1</strong>${omegaRatio > 8 ? ' ⚠️ 偏高' : ' ✅ 良好'}` : '🐟 ω-6:ω-3 = 暂无数据'}</div>`;
     
     if (fatDiff > 20) {
         html += `<div class="fat-warning">⚠️ 当前分餐脂肪偏低（差${fatDiff}g），建议增加坚果或选择三文鱼、牛油果等富脂食物</div>`;

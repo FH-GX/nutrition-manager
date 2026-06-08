@@ -395,6 +395,13 @@ header h1 {
     border-radius: 8px;
     border-left: 4px solid #f39c12;
 }
+.omega-ratio-line {
+    margin-top: 10px;
+    font-size: 0.85rem;
+    color: #555;
+    border-top: 1px dashed #ddd;
+    padding-top: 8px;
+}
 
 /* Mode Select */
 .mode-select-grid {
@@ -2705,6 +2712,42 @@ footer p {
 
 .dialog-popup.danger .dialog-actions .btn-primary:hover {
     background: #c0392b;
+}
+
+/* 版本更新弹窗 */
+.version-popup {
+    max-width: 400px;
+    text-align: center;
+}
+.version-popup-header {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 4px;
+}
+.version-popup-sub {
+    font-size: 0.92rem;
+    color: var(--primary);
+    margin-bottom: 16px;
+    font-weight: 500;
+}
+.version-popup-notes {
+    text-align: left;
+    background: #f8f9fa;
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-top: 8px;
+}
+.version-note-item {
+    font-size: 0.85rem;
+    color: #444;
+    line-height: 1.7;
+    padding: 2px 0;
+}
+.version-note-item + .version-note-item {
+    border-top: 1px dashed #e8e8e8;
+    margin-top: 2px;
+    padding-top: 4px;
 }
 
 /* ============================================

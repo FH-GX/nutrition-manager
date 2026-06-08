@@ -20,5 +20,9 @@ test-calendar-data.html
 test-checkin.html
 test-user-level.html
 
+# Test screenshots & playwright temp files
+*.png
+.playwright-cli/
+
 # Embedded git repos
 data/cfcd_temp
