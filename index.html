@@ -19,6 +19,7 @@
             </div>
             <div class="header-right" id="headerRight" style="display:none;">
                 <span class="header-user" id="headerUserName"></span>
+                <span class="family-switcher" id="familySwitcher" onclick="toggleFamilyDropdown()" title="切换家人" style="display:none;">👤 我 ▼</span>
                 <button class="header-icon-btn" id="notifBtn" onclick="toggleNotifications()" title="消息" style="position:relative;">
                     🔔
                     <span class="notif-badge" id="notifBadge">0</span>
@@ -440,6 +441,17 @@
                 </div>
             </div>
 
+            <!-- 家庭管理卡片 -->
+            <div class="card" id="familyCard">
+                <div class="settings-card-header">
+                    <h2>👨‍👩‍👧‍👦 家庭管理</h2>
+                    <button class="btn-secondary btn-sm" onclick="showAddFamilyMember()">➕ 添加家人</button>
+                </div>
+                <p class="settings-desc">管理家庭成员，每人独立营养方案。<br>年龄 &lt; 18 岁的儿童使用成人公式估算，儿童专属公式待后续更新。</p>
+                <div id="familyMemberList"></div>
+                <div id="familyMemberForm" style="display:none;"></div>
+            </div>
+
             <div class="card">
                 <div class="settings-card-header">
                     <h2>🔑 修改密码</h2>
@@ -489,7 +501,7 @@
         </div>
 
         <!-- 版本号 -->
-        <div class="version-footer">v1.1</div>
+        <div class="version-footer">v1.2</div>
 
         <!-- ============================================
         消息通知面板

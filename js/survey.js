@@ -267,6 +267,11 @@ function doLogin(name) {
     // 显示右上角用户信息
     $showFlex('headerRight');
 
+    // 初始化家庭成员数据
+    if (typeof initFamilyMembers === 'function') initFamilyMembers();
+    // 更新导航家人切换器
+    if (typeof updateFamilyNavDisplay === 'function') updateFamilyNavDisplay();
+
     updateNavActive('calculator');
 
     initSurvey();

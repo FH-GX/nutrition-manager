@@ -395,6 +395,152 @@ function getRegCodeRemaining(code) {
 }
 
 // ============================================
+// 家庭管理（家庭成员 & 活跃成员切换）
+// ============================================
+
+const FAMILY_MEMBERS_KEY = 'family_members';
+const FAMILY_ACTIVE_KEY = 'family_active';
+
+/** 关系 → 默认 emoji 映射 */
+function getRelationEmoji(relation) {
+    const map = {
+        '爸爸': '👨', '妈妈': '👩', '丈夫': '👨', '妻子': '👩',
+        '儿子': '👦', '女儿': '👧',
+        '爷爷': '👴', '奶奶': '👵', '外公': '👴', '外婆': '👵',
+        '哥哥': '👦', '姐姐': '👧', '弟弟': '👦', '妹妹': '👧',
+    };
+    return map[relation] || '👤';
+}
+
+/**
+ * 获取所有家庭成员
+ * @returns {Array<{id: string, name: string, relation: string, gender: string, age: number, height: number, weight: number, activity: string}>}
+ */
+function getFamilyMembers() {
+    try {
+        return JSON.parse(localStorage.getItem(FAMILY_MEMBERS_KEY) || '[]');
+    } catch { return []; }
+}
+
+/**
+ * 保存家庭成员列表
+ */
+function saveFamilyMembers(list) {
+    localStorage.setItem(FAMILY_MEMBERS_KEY, JSON.stringify(list));
+}
+
+/**
+ * 生成唯一 ID
+ */
+function genFamilyId() {
+    return 'fam_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+}
+
+/**
+ * 添加家庭成员
+ * @param {object} member - {name, relation, gender, age, height, weight, activity}
+ * @returns {object} 完整 member 对象（含 id）
+ */
+function addFamilyMember(member) {
+    const list = getFamilyMembers();
+    const newMember = {
+        id: genFamilyId(),
+        name: member.name || '',
+        relation: member.relation || '家人',
+        gender: member.gender || 'male',
+        age: member.age || 30,
+        height: member.height || 170,
+        weight: member.weight || 65,
+        activity: member.activity || 'light',
+    };
+    list.push(newMember);
+    saveFamilyMembers(list);
+    return newMember;
+}
+
+/**
+ * 更新家庭成员
+ */
+function updateFamilyMember(id, updates) {
+    const list = getFamilyMembers();
+    const idx = list.findIndex(m => m.id === id);
+    if (idx === -1) return null;
+    list[idx] = { ...list[idx], ...updates };
+    saveFamilyMembers(list);
+    return list[idx];
+}
+
+/**
+ * 删除家庭成员
+ */
+function removeFamilyMember(id) {
+    const list = getFamilyMembers();
+    const newList = list.filter(m => m.id !== id);
+    saveFamilyMembers(newList);
+    // 如果删的是当前活跃成员，切换到第一个
+    const active = getActiveFamilyMember();
+    if (active && active.id === id) {
+        setActiveFamilyMember(newList.length > 0 ? newList[0].id : null);
+    }
+}
+
+/**
+ * 获取当前活跃的家庭成员
+ * @returns {object|null}
+ */
+function getActiveFamilyMember() {
+    const activeId = localStorage.getItem(FAMILY_ACTIVE_KEY);
+    if (!activeId) return null;
+    const list = getFamilyMembers();
+    return list.find(m => m.id === activeId) || null;
+}
+
+/**
+ * 设置当前活跃的家庭成员
+ * @param {string} id
+ */
+function setActiveFamilyMember(id) {
+    if (id) {
+        localStorage.setItem(FAMILY_ACTIVE_KEY, id);
+    } else {
+        localStorage.removeItem(FAMILY_ACTIVE_KEY);
+    }
+}
+
+/**
+ * 获取活跃成员的头像 emoji
+ */
+function getActiveFamilyEmoji() {
+    const m = getActiveFamilyMember();
+    return m ? getRelationEmoji(m.relation) : '👤';
+}
+
+/**
+ * 初始化家庭成员（首次登录时自动创建）
+ * 将现有 basic_info 数据转为第一个家庭成员
+ */
+function initFamilyMembers() {
+    let list = getFamilyMembers();
+    if (list.length > 0) return; // 已有家庭成员，跳过
+
+    // 从现有 basic_info 读取
+    const info = loadBasicInfo();
+    const email = getCurrentSessionUser();
+    const displayName = info?.name || (email ? email.split('@')[0] : '我');
+
+    const firstMember = addFamilyMember({
+        name: displayName,
+        relation: '本人',
+        gender: info?.gender || 'male',
+        age: info?.age || 30,
+        height: info?.height || 170,
+        weight: info?.weight || 65,
+        activity: info?.activity || 'light',
+    });
+    setActiveFamilyMember(firstMember.id);
+}
+
+// ============================================
 // 饮食问卷数据
 // ============================================
 

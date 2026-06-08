@@ -3553,3 +3553,128 @@ footer p {
     opacity: 0.6;
     user-select: none;
 }
+
+/* ============================================
+   家庭管理
+   ============================================ */
+
+/* 导航栏家人切换器 */
+.family-switcher {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 0.82rem;
+    color: var(--text);
+    cursor: pointer;
+    padding: 4px 10px;
+    border-radius: 16px;
+    background: var(--bg);
+    transition: background 0.15s;
+    white-space: nowrap;
+    user-select: none;
+    margin: 0 4px;
+}
+.family-switcher:hover {
+    background: #e8e8e8;
+}
+
+/* 家庭切换下拉菜单 */
+.family-dropdown {
+    position: fixed;
+    z-index: 9999;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    border: 1px solid #e8ecf0;
+    min-width: 180px;
+    max-width: 240px;
+    overflow: hidden;
+    animation: dialogSlideUp 0.15s ease;
+}
+.family-dropdown-item {
+    padding: 10px 14px;
+    font-size: 0.88rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: background 0.1s;
+    border-bottom: 1px solid #f0f0f0;
+}
+.family-dropdown-item:last-child {
+    border-bottom: none;
+}
+.family-dropdown-item:hover {
+    background: #f0f7ff;
+}
+.family-dropdown-item.active {
+    background: #e3f2fd;
+    font-weight: 600;
+}
+.family-dropdown-relation {
+    font-size: 0.75rem;
+    color: var(--text-light);
+    margin-left: auto;
+}
+
+/* 家庭成员列表项 */
+.family-member-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: #f8f9fa;
+    margin-bottom: 8px;
+    transition: background 0.15s;
+    border: 1.5px solid transparent;
+}
+.family-member-item.active {
+    border-color: var(--primary);
+    background: #f0f7ff;
+}
+.family-member-avatar {
+    font-size: 1.8rem;
+    line-height: 1;
+    width: 40px;
+    text-align: center;
+    flex-shrink: 0;
+}
+.family-member-info {
+    flex: 1;
+    min-width: 0;
+}
+.family-member-info strong {
+    display: block;
+    font-size: 0.9rem;
+    color: var(--text);
+}
+.family-member-detail {
+    font-size: 0.78rem;
+    color: var(--text-light);
+    display: block;
+    margin-top: 1px;
+}
+.family-member-actions {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex-shrink: 0;
+}
+.family-member-badge {
+    font-size: 0.72rem;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: var(--primary);
+    color: #fff;
+    font-weight: 500;
+}
+.family-form {
+    padding: 12px 0 4px;
+}
+.family-form h4 {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text);
+    margin: 0 0 8px 0;
+}
