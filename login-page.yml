@@ -1,0 +1,32 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - heading "🍽️ 今天，吃了吗？" [level=1] [ref=e5]
+    - generic [ref=e7]:
+      - heading "🔐 创建账号" [level=2] [ref=e8]
+      - paragraph [ref=e9]: 请先创建您的个人账号，以便保存饮食调查记录
+      - generic [ref=e10]:
+        - button "注册" [ref=e11] [cursor=pointer]
+        - button "登录" [ref=e12] [cursor=pointer]
+      - generic [ref=e13]:
+        - textbox "请输入邮箱（如 test@163.com）" [ref=e15]
+        - textbox "设置密码（至少6位）" [ref=e17]
+        - textbox "再次输入密码" [ref=e19]
+        - textbox "请输入注册验证码" [ref=e21]
+        - button "📝 注册并开始" [ref=e22] [cursor=pointer]
+    - generic [ref=e23]: v1.3
+    - contentinfo [ref=e24]:
+      - paragraph [ref=e25]: ⚠️ 本工具仅供参考，不构成医疗建议。慢病患者请咨询医生或营养师。
+  - generic [ref=e27]:
+    - generic [ref=e28]:
+      - generic [ref=e29]: 🎉 「今天，吃了吗？」
+      - generic [ref=e30]:
+        - text: 已更新至
+        - strong [ref=e31]: v1.3
+      - generic [ref=e32]:
+        - generic [ref=e33]: 🛢️ 油品轮换优化——橄榄油优先，减少高ω-6菜籽油
+        - generic [ref=e34]: 🛢️ 三餐独立选油——不再全天一种油
+        - generic [ref=e35]: 🥜 坚果比例调整——增加核桃、杏仁频次
+        - generic [ref=e36]: 🥩 肉类轮换新增羊肉、鸭肉，三文鱼频次翻倍
+        - generic [ref=e37]: 🐟 新增 ω-6:ω-3 比值展示——超标时自动提醒
+    - button "知道了" [ref=e39] [cursor=pointer]
