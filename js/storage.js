@@ -652,6 +652,17 @@ function getUnreadNotifCount() {
 }
 
 /**
+ * 清除所有通知
+ */
+function clearAllNotifications() {
+    const email = getCurrentSessionUser();
+    if (!email) return;
+    const key = NOTIF_PREFIX + email;
+    localStorage.removeItem(key);
+    updateNotificationBadge();
+}
+
+/**
  * 刷新通知角标
  */
 function updateNotificationBadge() {

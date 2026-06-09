@@ -4524,6 +4524,13 @@ function checkVersionUpdate() {
     document.getElementById('versionOkBtn').addEventListener('click', () => {
         localStorage.setItem(VERSION_LOG_KEY, APP_VERSION);
         if (document.body.contains(overlay)) document.body.removeChild(overlay);
+        // 推送到消息中心，保留版本更新信息
+        if (typeof addNotification === 'function') {
+            // 每条更新日志作为一条独立通知
+            notes.forEach(n => {
+                addNotification('info', '🎉', `${APP_VERSION} 更新`, n);
+            });
+        }
     });
 }
 

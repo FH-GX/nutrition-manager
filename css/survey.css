@@ -904,7 +904,28 @@ header {
 .notif-panel-list {
     overflow-y: auto;
     flex: 1;
-    max-height: 380px;
+    max-height: 350px;
+}
+
+.notif-actions {
+    display: flex;
+    gap: 6px;
+    padding: 6px 16px;
+    border-bottom: 1px solid var(--border, #f0f0f0);
+}
+
+.notif-action-btn {
+    background: var(--card-bg, #f5f5f5);
+    border: 1px solid var(--border, #e0e0e0);
+    border-radius: 6px;
+    font-size: 0.75rem;
+    padding: 4px 10px;
+    cursor: pointer;
+    transition: background 0.12s;
+}
+
+.notif-action-btn:hover {
+    background: var(--hover-bg, #e8e8e8);
 }
 
 .notif-item {

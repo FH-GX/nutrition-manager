@@ -1057,7 +1057,19 @@ function renderNotifPanel() {
         return;
     }
 
-    list.innerHTML = notifs.map(n => `
+    // 操作按钮区
+    let actionsHtml = '';
+    const unreadCount = notifs.filter(n => !n.read).length;
+    if (notifs.length > 0) {
+        actionsHtml = `
+            <div class="notif-actions">
+                ${unreadCount > 0 ? '<button class="notif-action-btn" onclick="markAllNotifRead();renderNotifPanel();">✅ 全部已读</button>' : ''}
+                <button class="notif-action-btn" onclick="clearAllNotifications();renderNotifPanel();" style="color:var(--danger);">🗑️ 一键清除</button>
+            </div>
+        `;
+    }
+
+    list.innerHTML = actionsHtml + notifs.map(n => `
         <div class="notif-item${n.read ? '' : ' unread'}" onclick="markNotifRead(${n.id})">
             <div class="notif-item-icon">${n.icon || 'ℹ️'}</div>
             <div class="notif-item-body">
