@@ -51,10 +51,46 @@ function extractXiaResult(apiData) {
 }
 
 /**
+ * 从儿童 API 响应提取 xiaResult 格式
+ */
+function extractChildResult(apiData) {
+    return {
+        tdee: apiData.energy,
+        stdWeight: null,
+        targetWeight: null,
+        bmi: null,
+        ageFactor: null,
+        energyCoeff: null,
+        calcDetail: apiData.energyMethod,
+    };
+}
+
+/**
  * 调用云端计算（替换 calculateTDEE_XiaMeng + calculateDailyMacros 组合）
+ * @param {number} height - 身高(cm)
+ * @param {number} weight - 体重(kg)
+ * @param {number} age - 年龄
+ * @param {number} activity - 活动系数
+ * @param {object} ratio - 营养比例 { carb, protein, fat }
+ * @param {string} [gender] - 性别（儿童必需）
  * @returns {Promise<{xiaResult: object, macros: object}|null>} 失败返回 null
  */
-async function fetchRemoteCalculation(height, weight, age, activity, ratio) {
+async function fetchRemoteCalculation(height, weight, age, activity, ratio, gender) {
+    // 儿童（<18岁）：走儿童公式，默认碳水57%，蛋白查RNI表
+    if (age < 18 && gender) {
+        const resp = await apiCalculateChild({
+            age, gender, weight,
+            advancedMode: false
+        });
+        if (!resp.success) {
+            showToast('计算服务异常：' + (resp.error || '请稍后重试'), 'error');
+            return null;
+        }
+        const macros = enrichMacros(resp.data.macros);
+        return { xiaResult: extractChildResult(resp.data), macros };
+    }
+
+    // 成人（≥18岁）：走成人公式
     const resp = await apiCalculateAdult({
         height, weight, age, activity,
         tier: { carbPct: ratio.carb, proteinPct: ratio.protein, fatPct: ratio.fat }
@@ -1130,6 +1166,22 @@ function showProfileSelectorInPage(intake) {
 
     let html = '';
 
+    // 儿童（<18岁）：跳过三档和模式选择，直接显示儿童方案提示
+    const info = loadBasicInfo();
+    if (info && info.age < 18) {
+        html = `
+        <div class="card" style="text-align:center;padding:40px 20px;">
+            <p style="font-size:2.5rem;margin-bottom:8px;">👶</p>
+            <p style="font-size:1.1rem;color:var(--text);margin-bottom:6px;">儿童营养方案</p>
+            <p style="color:var(--text-light);font-size:0.85rem;margin-bottom:16px;">
+                基于《中国居民膳食指南》EER/RNI标准 · 碳水57%
+            </p>
+            <button class="btn-primary" onclick="generateChildPlanInline(loadBasicInfo())">生成方案 →</button>
+        </div>`;
+        if (content) content.innerHTML = html;
+        return;
+    }
+
     if (profileStep === 'select-mode') {
         // ==========================================
         // 第一步：模式选择页
@@ -1491,7 +1543,7 @@ async function selectLowCarbProfileForPage(profileIndex) {
 async function generateProfilePlan(userData, ratio) {
     const bmr = calculateBMR(userData.gender, userData.age, userData.height, userData.weight);
     const remote = await fetchRemoteCalculation(
-        userData.height, userData.weight, userData.age, userData.activity, ratio
+        userData.height, userData.weight, userData.age, userData.activity, ratio, userData.gender
     );
     if (!remote) return;
     const macros = remote.macros;
@@ -2493,7 +2545,7 @@ async function selectLowCarbProfile(profileIndex) {
 
     const bmr = calculateBMR(userData.gender, userData.age, userData.height, userData.weight);
     const remote = await fetchRemoteCalculation(
-        userData.height, userData.weight, userData.age, userData.activity, ratio
+        userData.height, userData.weight, userData.age, userData.activity, ratio, userData.gender
     );
     if (!remote) return;
     const macros = remote.macros;
@@ -3419,9 +3471,48 @@ async function calculate() {
 let planCache = null;
 
 /**
- * 自动生成今日营养方案
- * 读取 localStorage 缓存的个人信息 + 档位偏好
+ * 儿童方案一键生成（跳过档位选择，默认碳水57%）
  */
+async function generateChildPlanInline(info) {
+    const resp = await apiCalculateChild({
+        age: info.age,
+        gender: info.gender,
+        weight: info.weight,
+        advancedMode: false
+    });
+    if (!resp.success) {
+        showToast('儿童计算服务异常', 'error');
+        return;
+    }
+    const xiaResult = extractChildResult(resp.data);
+    const macros = enrichMacros(resp.data.macros);
+    const bmr = calculateBMR(info.gender, info.age, info.height, info.weight);
+
+    users[currentUser] = {
+        ...users[currentUser],
+        ...info,
+        xiaResult,
+        macroRatios: { carb: 57, protein: resp.data.macros.protein.percent, fat: resp.data.macros.fat.percent }
+    };
+
+    const mealPlan = generateMealPlan(macros);
+    savePlanToHistory(mealPlan);
+
+    if (typeof renderBasicInfoSummary === 'function') renderBasicInfoSummary();
+    if (typeof showResultPage === 'function') {
+        showResultPage(null);
+        setTimeout(() => {
+            if (typeof renderDailyPlan === 'function') {
+                planCache = { info, xiaResult, bmr, macros, mealPlan, compensation: 0, tier: null };
+                renderDailyPlan(info, xiaResult, bmr, macros, mealPlan, 0, null);
+            }
+            if (typeof renderMVDashboard === 'function' && mealPlan) {
+                renderMVDashboard(mealPlan, users[currentUser]);
+            }
+        }, 200);
+    }
+}
+
 /**
  * 自动生成今日营养方案
  * 读取 localStorage 缓存的个人信息 + 档位偏好
@@ -3457,6 +3548,15 @@ async function autoGenerateDailyPlan(silent) {
 
     // 有信息但无档位 → 引导选档位（隐藏旧计算器按钮，新流程不需要）
     if (!tier || !tier.ratio) {
+        // 儿童（<18岁）：跳过档位选择，直接生成儿童方案
+        if (info.age < 18) {
+            if (calcBtn) calcBtn.style.display = 'none';
+            const editBtn = document.getElementById('calcEditBtn');
+            if (editBtn) editBtn.style.display = 'none';
+            // 直接生成儿童方案（默认碳水57%，蛋白查RNI表）
+            await generateChildPlanInline(info);
+            return;
+        }
         if (calcBtn) calcBtn.style.display = 'none';
         const editBtn = document.getElementById('calcEditBtn');
         if (editBtn) editBtn.style.display = 'none';
@@ -4467,11 +4567,6 @@ const VERSION_LOG_KEY = 'nutri_seen_version';
  */
 const VERSION_NOTES = {
     'v2': [
-        '🔒 核心公式迁移到云端——F12不再暴露公式',
-        '☁️ 新增 Supabase Edge Function 云端计算',
-        '🛡️ 三层安全防线——云端公式+鉴权+RLS',
-        '🐛 修复控制台报错——加载更干净了'
-    ],
         '🔒 核心公式迁移到云端——F12不再暴露公式',
         '☁️ 新增 Supabase Edge Function 云端计算',
         '🛡️ 三层安全防线——云端公式+鉴权+RLS',
