@@ -1,10 +1,13 @@
 # 版本日志 — 「今天，吃了吗？」
 
-## V1.4（方案C：核心公式迁移到云端 — 2026-06-09）
+## V2（方案C：核心公式迁移到云端 — 2026-06-09）
 
-### 架构变更（⚠️ 重大）
-- **核心公式迁移到 Supabase Edge Function**：TDEE 计算（BMI/标准体重/年龄系数/能量系数/三大营养素）全部部署到云端，前端只传参数，F12 看不到公式
-- **15张参考数据表**：`ref_energy_coeff`、`ref_age_factor`、`ref_bmi_threshold`、`child_energy` 等（RLS 禁止 anon 直读，仅 Edge Function 可读）
+### ⚠️ 重大版本升级说明
+> 架构重心从纯前端计算 → Supabase 云端计算，**核心公式不再暴露在 F12 中**
+
+### 架构变更
+- **核心公式迁移到 Supabase Edge Function**：TDEE 计算（BMI/标准体重/年龄系数/能量系数/三大营养素）全部部署到云端，前端只传参数
+- **15张参考数据表**：`ref_energy_coeff`、`ref_age_factor`、`ref_bmi_threshold`、`child_energy` 等（RLS 禁止 anon 直读）
 - **三层安全防线**：F12搜公式 → 云端代码挡住 | 直接curl调Edge Function → 鉴权 | anon key查表 → RLS拒绝
 
 ### 新增文件
@@ -29,8 +32,15 @@
 - 🔧 `updateNavActive is not defined` → 加 `typeof` 保护
 
 ### 已知问题
-- 儿童公式 Edge Function 已部署，但前端儿童注册/输入界面尚未实现
+- 儿童公式 Edge Function 已部署（`calculate-child`），但前端儿童注册/输入界面尚未实现
 - 能量补偿调整的宏量营养素仍用本地计算（TDEE已知后仅做比例拆分，无敏感公式）
+- admin 账号 `fhgexin@gmail.com` 需手动执行 `sql/fix_admin_account.sql` 补录 user_accounts 记录
+
+### 回滚指南
+如 V2 云端架构出现异常，可回退至 V1.3 版本：
+1. `git revert HEAD~3`（回退最近3个commit）
+2. 确认 Edge Function 不再被调用
+3. 删除 `js/supabase-api.js` 引用
 
 ### 新增功能
 - **🛢️ 油品轮换重调**：菜籽油60%→30%，橄榄油→40%，猪油→30%（符合"鼓励橄榄油/猪油，减少高ω-6菜籽油"）
@@ -126,4 +136,5 @@
 每次更新需同步修改：
 1. 本文件（添加版本记录）
 2. `index.html` 中的 `.version-footer` 文字
-3. Git commit 消息（包含版本号）
+3. `js/app.js` 中的 `APP_VERSION` 常量
+4. Git commit 消息（包含版本号）

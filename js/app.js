@@ -4458,7 +4458,7 @@ function saveSettingsBasicInfo() {
 // ============================================
 // 版本更新通知
 // ============================================
-const APP_VERSION = 'v1.4';
+const APP_VERSION = 'v2';
 const VERSION_LOG_KEY = 'nutri_seen_version';
 
 /**
@@ -4466,7 +4466,12 @@ const VERSION_LOG_KEY = 'nutri_seen_version';
  * 每新增一个版本，加一条记录
  */
 const VERSION_NOTES = {
-    'v1.4': [
+    'v2': [
+        '🔒 核心公式迁移到云端——F12不再暴露公式',
+        '☁️ 新增 Supabase Edge Function 云端计算',
+        '🛡️ 三层安全防线——云端公式+鉴权+RLS',
+        '🐛 修复控制台报错——加载更干净了'
+    ],
         '🔒 核心公式迁移到云端——F12不再暴露公式',
         '☁️ 新增 Supabase Edge Function 云端计算',
         '🛡️ 三层安全防线——云端公式+鉴权+RLS',
