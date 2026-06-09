@@ -1,6 +1,36 @@
 # 版本日志 — 「今天，吃了吗？」
 
-## V1.3（附录3脂肪分级落地 — 2026-06-08）
+## V1.4（方案C：核心公式迁移到云端 — 2026-06-09）
+
+### 架构变更（⚠️ 重大）
+- **核心公式迁移到 Supabase Edge Function**：TDEE 计算（BMI/标准体重/年龄系数/能量系数/三大营养素）全部部署到云端，前端只传参数，F12 看不到公式
+- **15张参考数据表**：`ref_energy_coeff`、`ref_age_factor`、`ref_bmi_threshold`、`child_energy` 等（RLS 禁止 anon 直读，仅 Edge Function 可读）
+- **三层安全防线**：F12搜公式 → 云端代码挡住 | 直接curl调Edge Function → 鉴权 | anon key查表 → RLS拒绝
+
+### 新增文件
+| 文件 | 说明 |
+|------|------|
+| `js/supabase-api.js` | Edge Function API 调用封装（JWT鉴权+重试） |
+| `sql/phase1_ref_tables.sql` | 15张参考数据表建表脚本 |
+| `sql/fix_admin_account.sql` | 修复admin账号user_accounts缺失记录 |
+| `backup/calculator-sensible-formulas.js` | 核心公式备份（供BOSS查阅） |
+| `supabase/functions/calculate-adult/index.ts` | 成人营养计算 Edge Function |
+| `supabase/functions/calculate-child/index.ts` | 儿童营养计算 Edge Function |
+| `supabase/functions/calculate-meal-plan/index.ts` | 分餐方案计算 Edge Function |
+
+### 涉及改动
+- `index.html`：新增 `supabase-api.js` 引用；版本号 v1.3→v1.4
+- `js/app.js`：8个函数改为 async，本地计算替换为 API 调用
+- `js/survey.js`：2个函数改为 async + API调用
+- `js/calculator.js`：原封不动（BOSS要备份）
+
+### Bug修复
+- 🔧 `shareBtn` 不存在报错 → 加 `?.` 可选链
+- 🔧 `updateNavActive is not defined` → 加 `typeof` 保护
+
+### 已知问题
+- 儿童公式 Edge Function 已部署，但前端儿童注册/输入界面尚未实现
+- 能量补偿调整的宏量营养素仍用本地计算（TDEE已知后仅做比例拆分，无敏感公式）
 
 ### 新增功能
 - **🛢️ 油品轮换重调**：菜籽油60%→30%，橄榄油→40%，猪油→30%（符合"鼓励橄榄油/猪油，减少高ω-6菜籽油"）

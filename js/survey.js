@@ -272,7 +272,7 @@ function doLogin(name) {
     // 更新导航家人切换器
     if (typeof updateFamilyNavDisplay === 'function') updateFamilyNavDisplay();
 
-    updateNavActive('calculator');
+    if (typeof updateNavActive === 'function') updateNavActive('calculator');
 
     initSurvey();
 
@@ -528,7 +528,7 @@ function submitSurvey() {
 /**
  * 跳过问卷，直接进入方案生成
  */
-function skipSurvey() {
+async function skipSurvey() {
     const name = surveyState.currentUser;
     if (!name) { showToast('请先登录', 'error'); return; }
 
@@ -540,16 +540,24 @@ function skipSurvey() {
         return;
     }
 
+    // 从云端API获取 TDEE
+    const skipResp = await apiCalculateAdult({
+        height: formData.height,
+        weight: formData.weight,
+        age: formData.age,
+        activity: formData.activity,
+        tier: { carbPct: 20, proteinPct: 15, fatPct: 65 }
+    });
+    let xiaResult = null;
+    if (skipResp.success) {
+        xiaResult = extractXiaResult(skipResp.data);
+    }
+
     // 保存到用户数据
     users[currentUser] = {
         ...users[currentUser],
         ...formData,
-        xiaResult: calculateTDEE_XiaMeng(
-            formData.height,
-            formData.weight,
-            formData.age,
-            formData.activity
-        )
+        xiaResult
     };
 
     // 跳转到方案生成页（无问卷数据）
@@ -790,7 +798,7 @@ function showCalculator() {
 /**
  * 每日营养方案页面（独立于计算器）
  */
-function showPlanPage() {
+async function showPlanPage() {
     renderNav('nav-planSection', 'plan');
     hideAllSections();
     $show('planSection');
@@ -813,12 +821,26 @@ function showPlanPage() {
         return;
     }
 
-    // 无缓存 → 从 localStorage 现场生成
+    // 无缓存 → 从云端 + localStorage 现场生成
     try {
         const info = loadBasicInfo();
         const tier = loadTierPreference();
         if (info && info.height && info.weight && tier && tier.ratio) {
-            const xiaResult = calculateTDEE_XiaMeng(info.height, info.weight, info.age, info.activity);
+            // 从云端获取TDEE（补偿调整的宏量营养素用本地计算，仅做比例拆分）
+            const planResp = await apiCalculateAdult({
+                height: info.height,
+                weight: info.weight,
+                age: info.age,
+                activity: info.activity,
+                tier: { carbPct: tier.ratio.carb, proteinPct: tier.ratio.protein, fatPct: tier.ratio.fat }
+            });
+            let xiaResult;
+            if (planResp.success) {
+                xiaResult = extractXiaResult(planResp.data);
+            } else {
+                showToast('计算服务异常，使用本地备用计算', 'error');
+                xiaResult = calculateTDEE_XiaMeng(info.height, info.weight, info.age, info.activity);
+            }
             const bmr = calculateBMR(info.gender, info.age, info.height, info.weight);
             const compensation = typeof getTodayCompensation === 'function' ? getTodayCompensation(xiaResult.tdee) : 0;
             const adjustedTDEE = xiaResult.tdee + compensation;
