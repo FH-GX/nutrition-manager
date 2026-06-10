@@ -26,3 +26,19 @@ test-user-level.html
 
 # Embedded git repos
 data/cfcd_temp
+
+# 营养资料源文件（保留本地，不上传）
+data/营养资料/
+
+# 中间数据文件（原始Excel/CSV/JSON已合并到foods.js）
+data/*.xlsx
+data/*.csv
+data/*.json
+data/foods.js.bak
+data/foods.js.broken
+data/foods_new.js
+data/GI-reference.md
+data/食物精选清单.md
+
+# 一次性数据处理脚本
+scripts/

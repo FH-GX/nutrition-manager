@@ -4558,7 +4558,7 @@ function saveSettingsBasicInfo() {
 // ============================================
 // 版本更新通知
 // ============================================
-const APP_VERSION = 'v2';
+const APP_VERSION = 'v2.1';
 const VERSION_LOG_KEY = 'nutri_seen_version';
 
 /**
@@ -4566,6 +4566,12 @@ const VERSION_LOG_KEY = 'nutri_seen_version';
  * 每新增一个版本，加一条记录
  */
 const VERSION_NOTES = {
+    'v2.1': [
+        '🍎 食物数据大升级——从126种扩至210种日常食物',
+        '🥬 全部营养数据来源官方——替换为《中国食物成分表》',
+        '🔢 GI频率控制上线——主食按低/中/高GI自动排班',
+        '🐟 ω-3/ω-6全面准确——基于官方脂肪酸数据',
+    ],
     'v2': [
         '🔒 核心公式迁移到云端——F12不再暴露公式',
         '☁️ 新增 Supabase Edge Function 云端计算',

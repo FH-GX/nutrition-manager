@@ -46,33 +46,74 @@ function findFoodNutrition(name) {
 }
 
 // ============================================
+// GI分级主食池（按GI值从FOOD_DATABASE筛选）
+// 低GI < 55 | 中GI 55-70 | 高GI > 70
+// 单位：GI值, 碳水g/100g
+// ============================================
+const GRAIN_POOLS = {
+    // 低GI主食（<55，适合多数日常餐次）
+    low: [
+        '甘薯（红薯）',    // GI:54, 碳水15.3
+        '芋头',           // GI:53, 碳水13.0
+        '山药',           // GI:51, 碳水70.8
+        '藜麦饭（熟）',    // GI:35, 碳水21.3
+    ],
+    // 中GI主食（55-70，偶尔使用，风味多样性）
+    mid: [
+        '燕麦粥（熟）',    // GI:55, 碳水19.2
+        '玉米（鲜）',      // GI:55, 碳水73.0
+        '紫薯（生）',      // GI:55, 碳水20.1
+        '黑米饭（熟）',    // GI:55, 碳水25.8
+        '糙米饭（熟）',    // GI:55, 碳水26.1
+        '荞麦面条（熟）',  // GI:59, 碳水23.5
+        '面条（煮）',      // GI:60, 碳水56.0
+        '马铃薯（土豆）',  // GI:62, 碳水14.2
+        '小米粥（熟）',    // GI:62, 碳水8.4
+        '粥（大米粥）',    // GI:69, 碳水9.9
+        '全麦面包',        // GI:69, 碳水46.1
+    ],
+    // 高GI主食（>70，严格控制频率，仅偶尔轮换）
+    high: [
+        '馒头（标准粉）',   // GI:85, 碳水50.9
+        '面包（白面包）',   // GI:75, 碳水50.0
+        '糯米饭',          // GI:87, 碳水28.5
+        '稻米（米饭）',     // GI:90, 碳水77.2
+        '小米（生）',       // GI:71, 碳水77.7
+    ]
+};
+
+// ============================================
+// GI周排班表（21个槽位 = 7天 × 早/午/晚）
+// 频率目标：低GI~17次/周 | 中GI~3次/周 | 高GI~1次/周
+// ============================================
+const GI_SCHEDULE = {
+    breakfast: ['low', 'low', 'low', 'low', 'low', 'low', 'low'],
+    lunch:     ['low', 'low', 'low', 'mid', 'low', 'mid', 'mid'],
+    dinner:    ['low', 'low', 'low', 'low', 'low', 'low', 'high']
+};
+
+/**
+ * 按GI级别从对应池中选主食（日期哈希确定性选择）
+ */
+function pickGrainByGI(giLevel, daySeed) {
+    const pool = GRAIN_POOLS[giLevel];
+    if (!pool || pool.length === 0) {
+        // 兜底：从低GI池选
+        const fallback = GRAIN_POOLS['low'];
+        return fallback[daySeed % fallback.length];
+    }
+    return pool[daySeed % pool.length];
+}
+
+// ============================================
 // 7天食物轮换池（只存食物名，运行时查FOOD_DATABASE获取营养数据）
+// 注：主食改为GI动态选择（见GRAIN_POOLS + GI_SCHEDULE），其余配菜仍用轮换池
 // ============================================
 const FOOD_ROTATION = {
-    // 早餐主食（低碳水友好，碳水密度适中）
-    breakfastGrain: [
-        '全麦面包',      // GI:50, 碳水46.1g/100g
-        '燕麦粥（熟）',   // GI:50, 碳水19.2g/100g
-        '甘薯（红薯）',   // GI:54, 碳水23.1g/100g
-        '全麦面包',
-        '玉米（鲜）',     // GI:55, 碳水22.8g/100g
-        '荞麦面条（熟）',  // GI:59, 碳水23.5g/100g
-        '燕麦粥（熟）'    // 重复但不同天
-    ],
     // 早餐蛋白质（固定）
     breakfastProtein: [
         { name: '鸡蛋（整）', grams: 100, detail: '2个' },
         { name: '牛奶', grams: 200, detail: '1杯' }
-    ],
-    // 午餐主食（杂粮/低GI）
-    lunchGrain: [
-        '糙米饭（熟）',    // GI:55, 碳水26.1g/100g
-        '黑米饭（熟）',    // GI:55, 碳水25.8g/100g
-        '荞麦面条（熟）',  // GI:59, 碳水23.5g/100g
-        '藜麦饭（熟）',    // GI:35, 碳水21.3g/100g
-        '糙米饭（熟）',
-        '荞麦面条（熟）',
-        '黑米饭（熟）'
     ],
     // 午餐蛋白质
     lunchProtein: [
@@ -88,11 +129,11 @@ const FOOD_ROTATION = {
     lunchVeggie: [
         '菠菜',
         '西蓝花',
-        '空心菜',
-        '菜心',
+        '小白菜',
+        '大白菜',
         '芦笋',
-        '娃娃菜',
-        '油麦菜'
+        '生菜',
+        '油菜（小青菜）'
     ],
     // 加餐水果
     snackFruit: [
@@ -100,40 +141,20 @@ const FOOD_ROTATION = {
         '橙子',
         '猕猴桃',
         '梨',
-        '蓝莓',
+        '草莓',
         '草莓',
         '火龙果'
     ],
     // 加餐坚果（日期哈希按比例轮换，在generateMealPlan中用pickByRatio选择）
-    // 晚餐主食（根茎类/杂粮，碳水密度适中）
-    dinnerGrain: [
-        '山药',         // 碳水12.4g/100g
-        '紫薯（生）',    // 碳水20.1g/100g
-        '黑米饭（熟）',  // 碳水25.8g/100g
-        '芋头',         // 碳水18.1g/100g
-        '马铃薯（土豆）', // 碳水16.5g/100g
-        '玉米（鲜）',    // 碳水22.8g/100g
-        '甘薯（红薯）'   // 碳水23.1g/100g
-    ],
-    // 晚餐蛋白质
-    dinnerProtein: [
-        '鸭肉',
-        '豆腐（北豆腐）',
-        '三文鱼',
-        '鸡胸肉',
-        '虾（河虾）',
-        '豆腐（北豆腐）',
-        '草鱼'
-    ],
     // 晚餐蔬菜
     dinnerVeggie: [
         '西蓝花',
         '油菜（小青菜）',
         '秋葵',
         '冬瓜',
-        '豆角',
+        '西葫芦',
         '芹菜',
-        '娃娃菜'
+        '小白菜'
     ]
 };
 
@@ -299,9 +320,16 @@ function generateMealPlan(macros) {
         snackNuts: findFoodNutrition(todayNutName),
         dinnerProtein: findFoodNutrition(dinnerProteinName),
         dinnerVeggie: findFoodNutrition(FOOD_ROTATION.dinnerVeggie[daySeed]),
-        breakfastGrain: findFoodNutrition(FOOD_ROTATION.breakfastGrain[daySeed]),
-        lunchGrain: findFoodNutrition(FOOD_ROTATION.lunchGrain[daySeed]),
-        dinnerGrain: findFoodNutrition(FOOD_ROTATION.dinnerGrain[daySeed])
+        breakfastGrain: findFoodNutrition(pickGrainByGI(GI_SCHEDULE.breakfast[daySeed], daySeed)),
+        lunchGrain: findFoodNutrition(pickGrainByGI(GI_SCHEDULE.lunch[daySeed], daySeed + 11)),
+        dinnerGrain: findFoodNutrition(pickGrainByGI(GI_SCHEDULE.dinner[daySeed], daySeed + 37))
+    };
+    
+    // 今日GI选出的主食名（供结果组装使用）
+    const todayGrainNames = {
+        breakfast: pickGrainByGI(GI_SCHEDULE.breakfast[daySeed], daySeed),
+        lunch: pickGrainByGI(GI_SCHEDULE.lunch[daySeed], daySeed + 11),
+        dinner: pickGrainByGI(GI_SCHEDULE.dinner[daySeed], daySeed + 37)
     };
     
     // ===== 步骤2：计算固定配菜贡献的碳水 =====
@@ -402,7 +430,7 @@ function generateMealPlan(macros) {
     const breakfast = {
         macros: mealMacros.breakfast,
         foods: {
-            grain: { name: FOOD_ROTATION.breakfastGrain[daySeed], grams: breakfastGrainGrams, detail: '' },
+            grain: { name: todayGrainNames.breakfast, grams: breakfastGrainGrams, detail: '' },
             egg: { name: '鸡蛋（整）', grams: FIXED_PORTIONS.egg.grams },
             dairy: { name: '牛奶', grams: FIXED_PORTIONS.milk.grams, detail: '1杯' },
             oil: { name: breakfastOilName, grams: breakfastOilGrams, detail: '' }
@@ -412,7 +440,7 @@ function generateMealPlan(macros) {
     const lunch = {
         macros: mealMacros.lunch,
         foods: {
-            grain: { name: FOOD_ROTATION.lunchGrain[daySeed], grams: lunchGrainGrams, detail: '' },
+            grain: { name: todayGrainNames.lunch, grams: lunchGrainGrams, detail: '' },
             protein: { name: lunchProteinName, grams: FIXED_PORTIONS.lunchProtein.grams, detail: '' },
             veggie: { name: FOOD_ROTATION.lunchVeggie[daySeed], grams: FIXED_PORTIONS.lunchVeggie.grams, detail: '' },
             oil: { name: lunchOilName, grams: lunchOilGrams, detail: '' }
@@ -430,7 +458,7 @@ function generateMealPlan(macros) {
     const dinner = {
         macros: mealMacros.dinner,
         foods: {
-            grain: { name: FOOD_ROTATION.dinnerGrain[daySeed], grams: dinnerGrainGrams, detail: '' },
+            grain: { name: todayGrainNames.dinner, grams: dinnerGrainGrams, detail: '' },
             protein: { name: dinnerProteinName, grams: FIXED_PORTIONS.dinnerProtein.grams, detail: '' },
             veggie: { name: FOOD_ROTATION.dinnerVeggie[daySeed], grams: FIXED_PORTIONS.dinnerVeggie.grams, detail: '' },
             oil: { name: dinnerOilName, grams: dinnerOilGrams, detail: '' }
