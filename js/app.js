@@ -4558,7 +4558,7 @@ function saveSettingsBasicInfo() {
 // ============================================
 // 版本更新通知
 // ============================================
-const APP_VERSION = 'v2.1';
+const APP_VERSION = 'v2.1.1';
 const VERSION_LOG_KEY = 'nutri_seen_version';
 
 /**
@@ -4566,6 +4566,10 @@ const VERSION_LOG_KEY = 'nutri_seen_version';
  * 每新增一个版本，加一条记录
  */
 const VERSION_NOTES = {
+    'v2.1.1': [
+        '🔧 修复食物库bug——补回getCategories()，移除module.exports',
+        '🍽️ 食物库页面恢复正常，210种食物分类显示',
+    ],
     'v2.1': [
         '🍎 食物数据大升级——从126种扩至210种日常食物',
         '🥬 全部营养数据来源官方——替换为《中国食物成分表》',
