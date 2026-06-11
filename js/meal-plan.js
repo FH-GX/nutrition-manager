@@ -146,6 +146,16 @@ const FOOD_ROTATION = {
         '火龙果'
     ],
     // 加餐坚果（日期哈希按比例轮换，在generateMealPlan中用pickByRatio选择）
+    // 晚餐蛋白质（午晚不重复品类，pickProteinExcludeCategory自动排除午餐品类）
+    dinnerProtein: [
+        '豆腐（北豆腐）',
+        '虾（河虾）',
+        '豆腐（北豆腐）',
+        '虾（河虾）',
+        '牛肉（瘦肉）',
+        '虾（河虾）',
+        '猪肉（瘦肉）'
+    ],
     // 晚餐蔬菜
     dinnerVeggie: [
         '西蓝花',
