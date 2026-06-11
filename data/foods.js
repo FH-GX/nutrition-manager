@@ -7707,6 +7707,29 @@ const FOOD_DATABASE = [
 // ==================== 辅助工具 ====================
 
 /**
+ * 搜索食物（按名称/别名模糊匹配）
+ */
+function searchFood(query, category = null) {
+  const q = query.toLowerCase().trim();
+  let results = FOOD_DATABASE.filter(food => {
+    if (food.name.toLowerCase().includes(q)) return true;
+    if (food.aliases && food.aliases.some(a => a.toLowerCase().includes(q))) return true;
+    return false;
+  });
+  if (category) {
+    results = results.filter(food => food.category === category);
+  }
+  return results;
+}
+
+/**
+ * 根据ID获取食物
+ */
+function getFoodById(id) {
+  return FOOD_DATABASE.find(food => food.id === id) || null;
+}
+
+/**
  * 获取食物分类列表
  */
 function getCategories() {

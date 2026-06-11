@@ -4,6 +4,8 @@
 
 ### Bug修复
 - 🔧 补回 `getCategories()` 函数（V2.1生成新版foods.js时丢失）
+- 🔧 补回 `searchFood()` 函数（食物搜索功能恢复）
+- 🔧 补回 `getFoodById()` 函数（食物详情查看功能恢复）
 - 🔧 移除 `module.exports`（浏览器不存在module对象，引发ReferenceError）
 
 ### 影响

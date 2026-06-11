@@ -4567,8 +4567,8 @@ const VERSION_LOG_KEY = 'nutri_seen_version';
  */
 const VERSION_NOTES = {
     'v2.1.1': [
-        '🔧 修复食物库bug——补回getCategories()，移除module.exports',
-        '🍽️ 食物库页面恢复正常，210种食物分类显示',
+        '🔧 修复食物库bug——补回searchFood()、getFoodById()、getCategories()',
+        '🍽️ 食物库页面恢复正常，210种食物可搜索可分类',
     ],
     'v2.1': [
         '🍎 食物数据大升级——从126种扩至210种日常食物',
