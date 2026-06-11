@@ -4621,14 +4621,19 @@ function saveSettingsBasicInfo() {
 // ============================================
 // 版本更新通知
 // ============================================
-const APP_VERSION = 'V2.2.1';
+const APP_VERSION = 'V2.2.2';
 const VERSION_LOG_KEY = 'nutri_seen_version';
+const VERSION_PREV_KEY = 'nutri_prev_version';  // 记录上次版本号，检测版本变更
 
 /**
  * 各版本更新日志
  * 每新增一个版本，加一条记录
  */
 const VERSION_NOTES = {
+    'V2.2.2': [
+        '🔔 修复版本更新不提示——新增 prevVersion 检测机制，版本号变化时强制弹窗',
+        '🔄 不再被localStorage缓存干扰，每次更新都能看到改动说明',
+    ],
     'V2.2.1': [
         '🐛 修复水果重复bug——早餐和加餐总是同一种水果的不合理（hash偏移碰撞）',
         '🥚 修复早餐渲染——鸡蛋和牛奶/豆浆现在同时正确显示在表格中',
@@ -4686,6 +4691,16 @@ const VERSION_NOTES = {
  */
 function checkVersionUpdate() {
     const seenVersion = localStorage.getItem(VERSION_LOG_KEY);
+    const prevVersion = localStorage.getItem(VERSION_PREV_KEY);
+
+    // ✅ 版本号变了 → 清除"已看过"标记，强制弹窗
+    if (prevVersion && prevVersion !== APP_VERSION) {
+        localStorage.removeItem(VERSION_LOG_KEY);
+    }
+
+    // 保存当前版本号为"上次版本"
+    localStorage.setItem(VERSION_PREV_KEY, APP_VERSION);
+
     if (seenVersion === APP_VERSION) return; // 已看过
 
     const notes = VERSION_NOTES[APP_VERSION];
