@@ -1,5 +1,39 @@
 # 版本日志 — 「今天，吃了吗？」
 
+## V2.2.1（修复水果重复+早餐渲染 — 2026-06-11）
+
+### Bug 修复
+- **水果重复**：`pickByRatio` 的 hash 偏移 503 与 1103 同模100 → 早餐加餐总是同一种水果 → 改 1103→997
+- **早餐渲染**：`renderMealPlanTable` / `calculateTotals` 已从旧 `breakfast.protein` 迁移到新 `breakfast.egg` + `breakfast.dairy`
+- **NaN 防御**：`fmtFood` 增加 `isNaN(grams)` 检查，避免极端情况显示 "NaNg"
+
+### 工作流
+- **双目录同步**：每次改代码后自动 sync 到 `E:\nutrition\`（Git 仓库目录），避免打开旧版本
+
+## V2.2（食物选择全面升级——个性化+动态化 — 2026-06-11）
+
+### 新增功能
+- **🥜 坚果池扩充**：从4种扩至8种——核桃40%/杏仁20%/开心果10%/腰果10%/花生7%/松子仁5%/榛子5%/瓜子3%，按 `pickByRatio` 轮换
+- **🍎 水果池大升级**：从固定7种（苹果·橙子·猕猴桃·梨·草莓·火龙果）扩至17种，按GI比例轮换（低GI 85%/中GI 10%/高GI 5%）
+- **📍 水果去向7天轮换**：不再只有加餐吃水果——部分天数早餐有水果、周五午餐也有水果，总水果量保持150g/天
+- **🥚 早餐蛋白质动态化**：从固定「鸡蛋2个+牛奶1杯」改为鸡蛋60%/牛奶25%/豆浆15%按比例轮换
+- **🛢️ 早餐油绑定鸡蛋**：仅鸡蛋日才配油（煎蛋），牛奶/豆浆日早餐无油
+- **🍇 三餐水果独立选择**：早/午/加餐各餐水果不同（不同 `hashDate` 偏移量）
+- **👤 用户个性化方案**：不同用户同一天食物完全不同（`userSeed` = 用户名哈希 + 重新生成计数器）
+- **🔄 重新生成真正变化**：每次点击「重新生成」食物种类随机变化（`planRegenCounter++`）
+
+### 改动文件
+- `js/meal-plan.js`：新增 `FRUIT_ITEMS`、`FRUIT_DISTRIBUTION`、`BREAKFAST_PROTEIN` 常量；`generateMealPlan` 加 `userSeed` 参数；所有选择函数接收哈希偏移
+- `js/app.js`：新增 `planRegenCounter` + `getUserSeed()`；4处 `generateMealPlan` 调用传 `userSeed`
+- `index.html`：版本号更新
+
+### 技术说明
+- `userSeed = stringHash(surveyState.currentUser) + planRegenCounter`
+- `hashDate()` 改为 `hashDate() + userSeed + offset`，所有选择函数自动个性化
+- 三水果独立选择偏移量：早餐+503 / 午餐+811 / 加餐+1103
+
+---
+
 ## V2.1.3（修复晚餐蛋白质缺失+切换角色不刷新 — 2026-06-11）
 
 ### Bug修复

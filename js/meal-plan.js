@@ -110,11 +110,6 @@ function pickGrainByGI(giLevel, daySeed) {
 // 注：主食改为GI动态选择（见GRAIN_POOLS + GI_SCHEDULE），其余配菜仍用轮换池
 // ============================================
 const FOOD_ROTATION = {
-    // 早餐蛋白质（固定）
-    breakfastProtein: [
-        { name: '鸡蛋（整）', grams: 100, detail: '2个' },
-        { name: '牛奶', grams: 200, detail: '1杯' }
-    ],
     // 午餐蛋白质
     lunchProtein: [
         '鸡胸肉',
@@ -134,16 +129,6 @@ const FOOD_ROTATION = {
         '芦笋',
         '生菜',
         '油菜（小青菜）'
-    ],
-    // 加餐水果
-    snackFruit: [
-        '苹果',
-        '橙子',
-        '猕猴桃',
-        '梨',
-        '草莓',
-        '草莓',
-        '火龙果'
     ],
     // 加餐坚果（日期哈希按比例轮换，在generateMealPlan中用pickByRatio选择）
     // 晚餐蛋白质（午晚不重复品类，pickProteinExcludeCategory自动排除午餐品类）
@@ -207,15 +192,14 @@ function pickProteinExcludeCategory(pool, seed, excludeCategory) {
 // 固定份量配置
 // ============================================
 const FIXED_PORTIONS = {
-    egg: { grams: 100, fallbackCarb: 1.2, fallbackFat: 8.8, fallbackProtein: 13.3 },
-    milk: { grams: 200, fallbackCarb: 6.8, fallbackFat: 3.2, fallbackProtein: 3.0 },
+    // 早餐蛋白质克数由 BREAKFAST_PROTEIN 动态决定
     lunchProtein: { grams: 150, fallbackCarb: 0, fallbackFat: 5.0, fallbackProtein: 20.0 },
     lunchVeggie: { grams: 200, fallbackCarb: 5.0, fallbackFat: 0.2, fallbackProtein: 1.5 },
-    snackFruit: { grams: 150, fallbackCarb: 15.0, fallbackFat: 0.3, fallbackProtein: 0.5 },
+    snackFruit: { grams: 150, fallbackCarb: 15.0, fallbackFat: 0.3, fallbackProtein: 0.5 },  // 总量150g，分配由 FRUIT_DISTRIBUTION 决定
     snackNuts: { grams: 20, fallbackCarb: 1.3, fallbackFat: 11.0, fallbackProtein: 2.5 },
     dinnerProtein: { grams: 120, fallbackCarb: 0, fallbackFat: 4.0, fallbackProtein: 18.0 },
     dinnerVeggie: { grams: 200, fallbackCarb: 5.0, fallbackFat: 0.2, fallbackProtein: 1.5 },
-    breakfastOil: { grams: 5, fallbackFat: 5.0 },   // 早餐用油（煎蛋/拌燕麦）
+    breakfastOil: { grams: 5, fallbackFat: 5.0 },   // 早餐用油，仅当早餐为鸡蛋时生效
     lunchOil: { grams: 10, fallbackFat: 10.0 },     // 午餐烹调油
     dinnerOil: { grams: 10, fallbackFat: 10.0 }     // 晚餐烹调油
 };
@@ -224,10 +208,14 @@ const FIXED_PORTIONS = {
 // 坚果轮换池（按比例，日期哈希选择）
 // ============================================
 const NUT_ITEMS = [
-    { value: '核桃', ratio: 50 },
-    { value: '杏仁', ratio: 25 },
-    { value: '花生', ratio: 15 },
-    { value: '瓜子（葵花子）', ratio: 10 }
+    { value: '核桃', ratio: 40 },
+    { value: '杏仁', ratio: 20 },
+    { value: '开心果', ratio: 10 },
+    { value: '腰果', ratio: 10 },
+    { value: '花生', ratio: 7 },
+    { value: '松子仁', ratio: 5 },
+    { value: '榛子', ratio: 5 },
+    { value: '瓜子（葵花子）', ratio: 3 }
 ];
 
 // ============================================
@@ -237,6 +225,64 @@ const OIL_ITEMS = [
     { value: '橄榄油', ratio: 40 },
     { value: '猪油', ratio: 30 },
     { value: '菜籽油', ratio: 30 }
+];
+
+// ============================================
+// 水果轮换池（按GI比例，日期哈希选择）
+// 低GI≤55 占85% | 中GI 56-69 占10% | 高GI≥70 占5%
+// ============================================
+const FRUIT_ITEMS = [
+    // 低GI水果（≤55）85%
+    { value: '苹果', ratio: 12 },      // GI:36
+    { value: '梨', ratio: 10 },        // GI:36
+    { value: '橙子', ratio: 10 },      // GI:43
+    { value: '草莓', ratio: 8 },       // GI:40
+    { value: '猕猴桃', ratio: 8 },     // GI:52
+    { value: '桃', ratio: 7 },         // GI:40
+    { value: '蜜桃', ratio: 7 },       // GI:33
+    { value: '火龙果', ratio: 6 },     // GI:40
+    { value: '葡萄', ratio: 5 },       // GI:43
+    { value: '葡萄柚[西柚]', ratio: 5 }, // GI:43
+    { value: '芒果', ratio: 2 },       // GI:55
+    { value: '香蕉', ratio: 3 },       // GI:52
+    { value: '李子', ratio: 1 },       // GI:24
+    { value: '樱桃', ratio: 1 },       // GI:22
+    // 中GI水果（56-69）10%
+    { value: '菠萝', ratio: 10 },      // GI:66
+    // 高GI水果（≥70）5%
+    { value: '哈密瓜', ratio: 3 },     // GI:70
+    { value: '西瓜', ratio: 2 },       // GI:72
+];
+
+// ============================================
+// 水果去向7天轮换（每天从150g总量中分配到各餐）
+// ============================================
+const FRUIT_DISTRIBUTION = [
+    { breakfast: 0,  lunch: 0,   snack: 150 },  // 周日
+    { breakfast: 50, lunch: 0,   snack: 100 },  // 周一
+    { breakfast: 0,  lunch: 0,   snack: 150 },  // 周二
+    { breakfast: 50, lunch: 0,   snack: 100 },  // 周三
+    { breakfast: 0,  lunch: 0,   snack: 150 },  // 周四
+    { breakfast: 50, lunch: 50,  snack: 50  },  // 周五
+    { breakfast: 50, lunch: 0,   snack: 100 },  // 周六
+];
+
+// ============================================
+// 早餐鸡蛋份量轮换（鸡蛋固定出现，份量可变）
+// 2个（100g）占60% | 1个（50g）占40%
+// ============================================
+const BREAKFAST_EGG_AMOUNT = [
+    { value: '鸡蛋（整）', ratio: 60, grams: 100 },  // 2个
+    { value: '鸡蛋（整）', ratio: 40, grams: 50 },   // 1个
+];
+
+// ============================================
+// 早餐乳品轮换（每天搭配鸡蛋出现）
+// 牛奶占60% | 豆浆占40%
+// ============================================
+const BREAKFAST_DAIRY = [
+    { value: '牛奶', ratio: 60, grams: 200 },
+    { value: '豆浆', ratio: 40, grams: 300 },
 ];
 
 // ============================================
@@ -305,28 +351,41 @@ function splitMacrosByMeal(macros) {
 // ============================================
 // 生成当日分餐方案（核心：动态计算克数）
 // ============================================
-function generateMealPlan(macros) {
-    const daySeed = getDaySeed();
+function generateMealPlan(macros, userSeed = 0) {
+    const daySeed = (hashDate() + userSeed) % 7;
     const mealMacros = splitMacrosByMeal(macros);
     const totalCarbTarget = macros.carb.grams_actual;
     const totalFatTarget = macros.fat.grams_actual;
     const totalProteinTarget = macros.protein.grams_actual;
     
-    // ===== 步骤1b：选择今日坚果 & 烹调油（日期哈希）=====
-    const todayNutName = pickByRatio(NUT_ITEMS, hashDate());
-    // 大偏移量确保三餐独立分布在不同的 %100 区间
-    const breakfastOilName = pickByRatio(OIL_ITEMS, hashDate() + 337);
-    const lunchOilName     = pickByRatio(OIL_ITEMS, hashDate() + 773);
-    const dinnerOilName    = pickByRatio(OIL_ITEMS, hashDate() + 1307);
+    const h = hashDate() + userSeed;  // 基准哈希，所有选择在此基础偏移
+    const todayNutName = pickByRatio(NUT_ITEMS, h);
+    const breakfastFruitName = pickByRatio(FRUIT_ITEMS, h + 503);
+    const lunchFruitName     = pickByRatio(FRUIT_ITEMS, h + 811);
+    const snackFruitName     = pickByRatio(FRUIT_ITEMS, h + 997);   // 997%100=97, 与503(3)/811(11)不碰撞
+    const fruitDist = FRUIT_DISTRIBUTION[daySeed];
+    // 早餐：鸡蛋固定出现 + 牛奶/豆浆二选一
+    const breakfastEggGrams = pickByRatio(BREAKFAST_EGG_AMOUNT, h + 701);  // 返回鸡蛋名
+    const breakfastEggInfo = BREAKFAST_EGG_AMOUNT.find(i => i.value === breakfastEggGrams) || BREAKFAST_EGG_AMOUNT[0];
+    const breakfastEggGramValue = breakfastEggInfo.grams;  // 50g(1个) 或 100g(2个)
+    const breakfastDairyName = pickByRatio(BREAKFAST_DAIRY, h + 811);
+    const breakfastDairyInfo = BREAKFAST_DAIRY.find(i => i.value === breakfastDairyName) || BREAKFAST_DAIRY[0];
+    const breakfastDairyGrams = breakfastDairyInfo.grams;  // 200ml(牛奶) 或 300ml(豆浆)
+    const hasBreakfastOil = h % 10 < 6;  // 60%煎蛋有油, 40%水煮蛋无油
+    const breakfastOilName = pickByRatio(OIL_ITEMS, h + 337);
+    const lunchOilName     = pickByRatio(OIL_ITEMS, h + 773);
+    const dinnerOilName    = pickByRatio(OIL_ITEMS, h + 1307);
     const lunchProteinName = FOOD_ROTATION.lunchProtein[daySeed];
     const dinnerProteinName = pickProteinExcludeCategory(FOOD_ROTATION.dinnerProtein, daySeed, PROTEIN_CATEGORIES[lunchProteinName]);
 
     const todayFoods = {
-        egg: findFoodNutrition('鸡蛋（整）'),
-        milk: findFoodNutrition('牛奶'),
+        breakfastProtein: findFoodNutrition('鸡蛋（整）'),
+        breakfastDairy: findFoodNutrition(breakfastDairyName),
         lunchProtein: findFoodNutrition(lunchProteinName),
         lunchVeggie: findFoodNutrition(FOOD_ROTATION.lunchVeggie[daySeed]),
-        snackFruit: findFoodNutrition(FOOD_ROTATION.snackFruit[daySeed]),
+        breakfastFruit: findFoodNutrition(breakfastFruitName),
+        lunchFruit: findFoodNutrition(lunchFruitName),
+        snackFruit: findFoodNutrition(snackFruitName),
         snackNuts: findFoodNutrition(todayNutName),
         dinnerProtein: findFoodNutrition(dinnerProteinName),
         dinnerVeggie: findFoodNutrition(FOOD_ROTATION.dinnerVeggie[daySeed]),
@@ -342,13 +401,15 @@ function generateMealPlan(macros) {
         dinner: pickGrainByGI(GI_SCHEDULE.dinner[daySeed], daySeed + 37)
     };
     
-    // ===== 步骤2：计算固定配菜贡献的碳水 =====
+    // ===== 步骤2：计算固定配菜贡献的碳水（含动态早餐蛋白+水果分配）=====
     const sideCarbs = {
-        egg: getNutrient(todayFoods.egg, FIXED_PORTIONS.egg.grams, 'carbs', FIXED_PORTIONS.egg.fallbackCarb),
-        milk: getNutrient(todayFoods.milk, FIXED_PORTIONS.milk.grams, 'carbs', FIXED_PORTIONS.milk.fallbackCarb),
+        breakfastEgg: getNutrient(todayFoods.breakfastProtein, breakfastEggGramValue, 'carbs', 0),
+        breakfastDairy: getNutrient(todayFoods.breakfastDairy, breakfastDairyGrams, 'carbs', 0),
+        breakfastFruit: getNutrient(todayFoods.breakfastFruit, fruitDist.breakfast, 'carbs', 0),
+        lunchFruit: getNutrient(todayFoods.lunchFruit, fruitDist.lunch, 'carbs', 0),
         lunchProtein: getNutrient(todayFoods.lunchProtein, FIXED_PORTIONS.lunchProtein.grams, 'carbs', FIXED_PORTIONS.lunchProtein.fallbackCarb),
         lunchVeggie: getNutrient(todayFoods.lunchVeggie, FIXED_PORTIONS.lunchVeggie.grams, 'carbs', FIXED_PORTIONS.lunchVeggie.fallbackCarb),
-        snackFruit: getNutrient(todayFoods.snackFruit, FIXED_PORTIONS.snackFruit.grams, 'carbs', FIXED_PORTIONS.snackFruit.fallbackCarb),
+        snackFruit: getNutrient(todayFoods.snackFruit, fruitDist.snack, 'carbs', 0),
         snackNuts: getNutrient(todayFoods.snackNuts, FIXED_PORTIONS.snackNuts.grams, 'carbs', FIXED_PORTIONS.snackNuts.fallbackCarb),
         dinnerProtein: getNutrient(todayFoods.dinnerProtein, FIXED_PORTIONS.dinnerProtein.grams, 'carbs', FIXED_PORTIONS.dinnerProtein.fallbackCarb),
         dinnerVeggie: getNutrient(todayFoods.dinnerVeggie, FIXED_PORTIONS.dinnerVeggie.grams, 'carbs', FIXED_PORTIONS.dinnerVeggie.fallbackCarb)
@@ -395,18 +456,20 @@ function generateMealPlan(macros) {
 
     // 5a：计算所有非油食物的脂肪（动/植物分类）
     const nonOilFats = [
-        classifyFoodFat(todayFoods.egg, FIXED_PORTIONS.egg.grams),
-        classifyFoodFat(todayFoods.milk, FIXED_PORTIONS.milk.grams),
+        classifyFoodFat(todayFoods.breakfastProtein, breakfastEggGramValue),
+        classifyFoodFat(todayFoods.breakfastDairy, breakfastDairyGrams),
+        ...(fruitDist.breakfast > 0 ? [classifyFoodFat(todayFoods.breakfastFruit, fruitDist.breakfast)] : []),
+        ...(fruitDist.lunch > 0 ? [classifyFoodFat(todayFoods.lunchFruit, fruitDist.lunch)] : []),
         classifyFoodFat(todayFoods.lunchProtein, FIXED_PORTIONS.lunchProtein.grams),
         classifyFoodFat(todayFoods.lunchVeggie, FIXED_PORTIONS.lunchVeggie.grams),
-        classifyFoodFat(todayFoods.snackFruit, FIXED_PORTIONS.snackFruit.grams),
+        ...(fruitDist.snack > 0 ? [classifyFoodFat(todayFoods.snackFruit, fruitDist.snack)] : []),
         classifyFoodFat(todayFoods.snackNuts, FIXED_PORTIONS.snackNuts.grams),
         classifyFoodFat(todayFoods.dinnerProtein, FIXED_PORTIONS.dinnerProtein.grams),
         classifyFoodFat(todayFoods.dinnerVeggie, FIXED_PORTIONS.dinnerVeggie.grams),
         classifyFoodFat(todayFoods.breakfastGrain, breakfastGrainGrams),
         classifyFoodFat(todayFoods.lunchGrain, lunchGrainGrams),
         classifyFoodFat(todayFoods.dinnerGrain, dinnerGrainGrams)
-    ];
+    ].flat();
     const nonOilAnimalFat = nonOilFats.reduce((s, f) => s + f.animal, 0);
     const nonOilPlantFat = nonOilFats.reduce((s, f) => s + f.plant, 0);
     const nonOilTotalFat = nonOilAnimalFat + nonOilPlantFat;
@@ -414,8 +477,7 @@ function generateMealPlan(macros) {
     // 5b：剩余脂肪由烹调油补齐
     const remainingFatForOil = Math.max(0, Math.round(totalFatTarget - nonOilTotalFat));
 
-    // 5c：早餐油由日期哈希决定（~60%给5g煎蛋，~40%给0g水煮蛋），剩余午晚1:1
-    const hasBreakfastOil = hashDate() % 10 < 6; // 60%概率给油
+    // 5c：早餐油——只有吃鸡蛋时才有煎蛋用油
     const breakfastOilGrams = hasBreakfastOil ? Math.min(5, remainingFatForOil) : 0;
     const remainingAfterBreakfast = remainingFatForOil - breakfastOilGrams;
     const lunchOilGrams = Math.round(remainingAfterBreakfast / 2);
@@ -441,9 +503,10 @@ function generateMealPlan(macros) {
         macros: mealMacros.breakfast,
         foods: {
             grain: { name: todayGrainNames.breakfast, grams: breakfastGrainGrams, detail: '' },
-            egg: { name: '鸡蛋（整）', grams: FIXED_PORTIONS.egg.grams },
-            dairy: { name: '牛奶', grams: FIXED_PORTIONS.milk.grams, detail: '1杯' },
-            oil: { name: breakfastOilName, grams: breakfastOilGrams, detail: '' }
+            egg: { name: '鸡蛋（整）', grams: breakfastEggGramValue, detail: hasBreakfastOil ? '煎蛋' : '水煮蛋' },
+            dairy: { name: breakfastDairyName, grams: breakfastDairyGrams, detail: '' },
+            fruit: fruitDist.breakfast > 0 ? { name: breakfastFruitName, grams: fruitDist.breakfast, detail: '' } : undefined,
+            oil: hasBreakfastOil ? { name: breakfastOilName, grams: 5, detail: '' } : undefined
         }
     };
     
@@ -453,6 +516,7 @@ function generateMealPlan(macros) {
             grain: { name: todayGrainNames.lunch, grams: lunchGrainGrams, detail: '' },
             protein: { name: lunchProteinName, grams: FIXED_PORTIONS.lunchProtein.grams, detail: '' },
             veggie: { name: FOOD_ROTATION.lunchVeggie[daySeed], grams: FIXED_PORTIONS.lunchVeggie.grams, detail: '' },
+            fruit: fruitDist.lunch > 0 ? { name: lunchFruitName, grams: fruitDist.lunch, detail: '' } : undefined,
             oil: { name: lunchOilName, grams: lunchOilGrams, detail: '' }
         }
     };
@@ -460,7 +524,7 @@ function generateMealPlan(macros) {
     const snack = {
         macros: mealMacros.snack,
         foods: {
-            fruit: { name: FOOD_ROTATION.snackFruit[daySeed], grams: FIXED_PORTIONS.snackFruit.grams, detail: '' },
+            fruit: fruitDist.snack > 0 ? { name: snackFruitName, grams: fruitDist.snack, detail: '' } : undefined,
             nuts: { name: todayNutName, grams: FIXED_PORTIONS.snackNuts.grams, detail: '' }
         }
     };
@@ -489,11 +553,13 @@ function generateMealPlan(macros) {
         };
     }
     const omegaSources = [
-        omegaFromFood('鸡蛋（整）', FIXED_PORTIONS.egg.grams),
-        omegaFromFood('牛奶', FIXED_PORTIONS.milk.grams),
+        omegaFromFood('鸡蛋（整）', breakfastEggGramValue),
+        omegaFromFood(breakfastDairyName, breakfastDairyGrams),
+        ...(fruitDist.breakfast > 0 ? [omegaFromFood(breakfastFruitName, fruitDist.breakfast)] : []),
+        ...(fruitDist.lunch > 0 ? [omegaFromFood(lunchFruitName, fruitDist.lunch)] : []),
         omegaFromFood(lunchProteinName, FIXED_PORTIONS.lunchProtein.grams),
         omegaFromFood(FOOD_ROTATION.lunchVeggie[daySeed], FIXED_PORTIONS.lunchVeggie.grams),
-        omegaFromFood(FOOD_ROTATION.snackFruit[daySeed], FIXED_PORTIONS.snackFruit.grams),
+        ...(fruitDist.snack > 0 ? [omegaFromFood(snackFruitName, fruitDist.snack)] : []),
         omegaFromFood(todayNutName, FIXED_PORTIONS.snackNuts.grams),
         omegaFromFood(dinnerProteinName, FIXED_PORTIONS.dinnerProtein.grams),
         omegaFromFood(FOOD_ROTATION.dinnerVeggie[daySeed], FIXED_PORTIONS.dinnerVeggie.grams),
@@ -528,12 +594,14 @@ function calculateTotals(breakfast, lunch, snack, dinner) {
     if (breakfast.foods.grain) grainTotal += breakfast.foods.grain.grams || 0;
     if (breakfast.foods.egg) eggGrams += breakfast.foods.egg.grams || 0;
     if (breakfast.foods.dairy) dairyGrams += breakfast.foods.dairy.grams || 0;
+    if (breakfast.foods.fruit) fruitTotal += breakfast.foods.fruit.grams || 0;
     if (breakfast.foods.oil) oilTotal += breakfast.foods.oil.grams || 0;
     
     // 午餐
     if (lunch.foods.grain) grainTotal += lunch.foods.grain.grams || 0;
     if (lunch.foods.protein) meatTotal += lunch.foods.protein.grams || 0;
     if (lunch.foods.veggie) veggieTotal += lunch.foods.veggie.grams || 0;
+    if (lunch.foods.fruit) fruitTotal += lunch.foods.fruit.grams || 0;
     if (lunch.foods.oil) oilTotal += lunch.foods.oil.grams || 0;
     
     // 加餐
@@ -569,7 +637,7 @@ function renderMealPlanTable(plan) {
     
     // 格式化食物显示：名称 (克数g)
     function fmtFood(name, grams, detail) {
-        if (!name || grams <= 0) return '<span class="mp-dash">—</span>';
+        if (!name || grams <= 0 || isNaN(grams)) return '<span class="mp-dash">—</span>';
         let text = name;
         if (detail) text = name + ' ' + detail;
         text += ' (' + grams + 'g)';
@@ -579,18 +647,19 @@ function renderMealPlanTable(plan) {
     // ========== 构建表格数据 ==========
     const headers = ['粮谷类', '水果', '蔬菜', '鸡蛋', '牛奶/酸奶', '肉/海鲜/豆类', '坚果', '食用油'];
     
-    // 早餐蛋用油判定（与generateMealPlan中逻辑一致）
-    const hasBreakfastOil = hashDate() % 10 < 6;
-    
     // 早餐行
     const breakfastItems = [
         fmtFood(breakfast.foods.grain?.name, breakfast.foods.grain?.grams, ''),
+        breakfast.foods.fruit ? fmtFood(breakfast.foods.fruit.name, breakfast.foods.fruit.grams, '') : '—',
         '—',
-        '—',
-        hasBreakfastOil
-            ? fmtFood('煎鸡蛋', 50, '1个') + '<br>' + fmtFood('水煮蛋', 50, '1个')
-            : fmtFood('水煮蛋', breakfast.foods.egg?.grams, '2个'),
-        fmtFood(breakfast.foods.dairy?.name, breakfast.foods.dairy?.grams, breakfast.foods.dairy?.detail),
+        // 鸡蛋列：始终显示（煎蛋或水煮蛋）
+        breakfast.foods.egg
+            ? fmtFood(breakfast.foods.egg.detail === '煎蛋' ? '煎鸡蛋' : '水煮蛋', breakfast.foods.egg.grams, '')
+            : '—',
+        // 牛奶/酸奶列：始终显示（牛奶或豆浆）
+        breakfast.foods.dairy
+            ? '<span>' + breakfast.foods.dairy.name + ' (' + breakfast.foods.dairy.grams + 'ml)</span>'
+            : '—',
         '—',
         '—',
         breakfast.foods.oil?.grams > 0 ? fmtFood(breakfast.foods.oil?.name, breakfast.foods.oil?.grams, '') : '—'
@@ -599,7 +668,7 @@ function renderMealPlanTable(plan) {
     // 午餐行
     const lunchItems = [
         fmtFood(lunch.foods.grain?.name, lunch.foods.grain?.grams, ''),
-        '—',
+        lunch.foods.fruit ? fmtFood(lunch.foods.fruit.name, lunch.foods.fruit.grams, '') : '—',
         fmtFood(lunch.foods.veggie?.name, lunch.foods.veggie?.grams, ''),
         '—',
         '—',
