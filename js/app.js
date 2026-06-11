@@ -251,13 +251,37 @@ async function syncAllFromSupabase() {
             localStorage.setItem(getStorageKey('debt'), JSON.stringify(debts[0].queue_data));
         }
 
-        // 4. 同步基本信息（本地没有才从云端拉）
+        // 4. 同步基本信息（云端数据覆盖本地，同时同步到家庭成员）
         const { data: settings } = await sb.from('user_settings')
             .select('preferences')
             .eq('user_id', userId)
             .single();
-        if (settings?.preferences?.basic_info && !loadBasicInfo()) {
+        if (settings?.preferences?.basic_info) {
             saveBasicInfo(settings.preferences.basic_info);
+            // 同步到家庭成员（查找"本人"成员并更新，不存在则创建）
+            const members = getFamilyMembers();
+            const info = settings.preferences.basic_info;
+            let self = members.find(m => m.relation === '本人');
+            if (self) {
+                updateFamilyMember(self.id, {
+                    name: info.name || self.name,
+                    gender: info.gender || self.gender,
+                    age: info.age || self.age,
+                    height: info.height || self.height,
+                    weight: info.weight || self.weight,
+                    activity: String(info.activity || '1.55'),
+                });
+            } else {
+                addFamilyMember({
+                    name: info.name || getCurrentSessionUser()?.split('@')[0] || '我',
+                    relation: '本人',
+                    gender: info.gender || 'male',
+                    age: info.age || 30,
+                    height: info.height || 170,
+                    weight: info.weight || 65,
+                    activity: String(info.activity || '1.55'),
+                });
+            }
         }
 
         } catch (e) {
@@ -4558,7 +4582,7 @@ function saveSettingsBasicInfo() {
 // ============================================
 // 版本更新通知
 // ============================================
-const APP_VERSION = 'v2.1.1';
+const APP_VERSION = 'v2.1.2';
 const VERSION_LOG_KEY = 'nutri_seen_version';
 
 /**
@@ -4566,6 +4590,10 @@ const VERSION_LOG_KEY = 'nutri_seen_version';
  * 每新增一个版本，加一条记录
  */
 const VERSION_NOTES = {
+    'v2.1.2': [
+        '🍽️ 修复一日3餐方案不显示（FOOD_ROTATION.*Grain残留引用→TypeError）',
+        '👤 修复基本信息与家庭成员不同步（云端同步时双向更新）',
+    ],
     'v2.1.1': [
         '🔧 修复食物库bug——补回searchFood()、getFoodById()、getCategories()',
         '🍽️ 食物库页面恢复正常，210种食物可搜索可分类',

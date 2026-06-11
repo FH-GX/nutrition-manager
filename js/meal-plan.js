@@ -487,9 +487,9 @@ function generateMealPlan(macros) {
         omegaFromFood(todayNutName, FIXED_PORTIONS.snackNuts.grams),
         omegaFromFood(dinnerProteinName, FIXED_PORTIONS.dinnerProtein.grams),
         omegaFromFood(FOOD_ROTATION.dinnerVeggie[daySeed], FIXED_PORTIONS.dinnerVeggie.grams),
-        omegaFromFood(FOOD_ROTATION.breakfastGrain[daySeed], breakfastGrainGrams),
-        omegaFromFood(FOOD_ROTATION.lunchGrain[daySeed], lunchGrainGrams),
-        omegaFromFood(FOOD_ROTATION.dinnerGrain[daySeed], dinnerGrainGrams),
+        omegaFromFood(todayGrainNames.breakfast, breakfastGrainGrams),
+        omegaFromFood(todayGrainNames.lunch, lunchGrainGrams),
+        omegaFromFood(todayGrainNames.dinner, dinnerGrainGrams),
         omegaFromFood(breakfastOilName, breakfastOilGrams),
         omegaFromFood(lunchOilName, lunchOilGrams),
         omegaFromFood(dinnerOilName, dinnerOilGrams)
