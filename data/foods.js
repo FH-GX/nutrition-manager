@@ -7703,8 +7703,16 @@ const FOOD_DATABASE = [
   },
 
 ];
-    
-module.exports = { FOOD_DATABASE };
+
+// ==================== 辅助工具 ====================
+
+/**
+ * 获取食物分类列表
+ */
+function getCategories() {
+  const cats = [...new Set(FOOD_DATABASE.map(f => f.category))];
+  return cats.sort();
+}
 
 // ==================== ω-3/ω-6 比例分析工具 ====================
 
