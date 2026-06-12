@@ -2175,9 +2175,14 @@ function buildCheckInHTML(dateStr, plan, mode) {
         { key: '晚餐', data: plan.dinner }
     ];
 
+    // 按时间窗预勾选：昨天/修改模式→全勾；今天→只看已过时间段的餐
+    const currentHour = new Date().getHours();
+    const MEAL_START_HOUR = { '早餐': 0, '午餐': 10, '加餐': 14, '晚餐': 17 };
+
     let mealsHtml = '';
     for (const meal of meals) {
         if (!meal.data || !meal.data.foods) continue;
+        const shouldCheck = isModify ? true : isToday ? currentHour >= (MEAL_START_HOUR[meal.key] ?? 0) : true;
         const foodKeys = Object.keys(meal.data.foods);
         let foodHtml = '';
         for (const fk of foodKeys) {
@@ -2185,7 +2190,7 @@ function buildCheckInHTML(dateStr, plan, mode) {
             if (!food || !food.name) continue;
             foodHtml += `
                 <label class="checkin-food-item">
-                    <input type="checkbox" class="checkin-food-cb" checked
+                    <input type="checkbox" class="checkin-food-cb" ${shouldCheck ? 'checked' : ''}
                         data-meal="${meal.key}" data-food="${food.name}"
                         data-grams="${food.grams || 0}">
                     <span class="checkin-food-name">${food.name}</span>
