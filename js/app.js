@@ -4626,7 +4626,7 @@ function saveSettingsBasicInfo() {
 // ============================================
 // 版本更新通知
 // ============================================
-const APP_VERSION = 'V2.2.2';
+const APP_VERSION = 'V2.2.3';
 const VERSION_LOG_KEY = 'nutri_seen_version';
 const VERSION_PREV_KEY = 'nutri_prev_version';  // 记录上次版本号，检测版本变更
 
@@ -4635,6 +4635,10 @@ const VERSION_PREV_KEY = 'nutri_prev_version';  // 记录上次版本号，检�
  * 每新增一个版本，加一条记录
  */
 const VERSION_NOTES = {
+    'V2.2.3': [
+        '🍳 打卡按时间窗预勾——今天只勾已过餐次（早餐6-10/午餐10-14/加餐14-17/晚餐17+）',
+        '🔍 修复「添加食物」首次点击不展开搜索框（CSS display vs inline style冲突）',
+    ],
     'V2.2.2': [
         '🔔 修复版本更新不提示——新增 prevVersion 检测机制，版本号变化时强制弹窗',
         '🔄 不再被localStorage缓存干扰，每次更新都能看到改动说明',
