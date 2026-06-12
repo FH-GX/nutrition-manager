@@ -2201,7 +2201,7 @@ function buildCheckInHTML(dateStr, plan, mode) {
                     <div class="checkin-add-food" data-meal="${meal.key}">
                         + 添加食物
                     </div>
-                    <div class="checkin-search-area" id="checkinSearch_${meal.key}">
+                    <div class="checkin-search-area" id="checkinSearch_${meal.key}" style="display:none">
                         <input type="text" class="checkin-search-input" placeholder="搜索食物名..."
                             data-meal="${meal.key}">
                         <div class="checkin-search-results" id="checkinResults_${meal.key}"></div>
