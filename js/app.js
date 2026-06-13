@@ -249,10 +249,9 @@ async function checkSessionValid() {
     try {
         const sb = getSupabase();
         if (!sb) return;
-        // 刷新确保拿到最新 user 数据
-        await sb.auth.refreshSession();
-        const { data: { user } } = await sb.auth.getUser();
-        const metaToken = user?.user_metadata?.session_id;
+        // refreshSession 返回最新 user，避免 getUser 缓存问题
+        const { data } = await sb.auth.refreshSession();
+        const metaToken = data?.user?.user_metadata?.session_id;
         if (metaToken && metaToken !== localToken) {
             showToast('⚠️ 你的账号已在其他设备登录', 'error');
             setTimeout(() => logoutUser(), 1500);
@@ -263,18 +262,17 @@ async function checkSessionValid() {
 /**
  * 启动 session 监控（页面切回 + 定时校验）
  */
-let sessionMonitorInited = false;
 function initSessionMonitor() {
-    if (sessionMonitorInited) return;
-    sessionMonitorInited = true;
-    // 页面切回时校验
+    // 每次登入都重新启动监控（防止 setInterval 丢失）
+    if (window.__sessionInterval) clearInterval(window.__sessionInterval);
+    
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') {
             checkSessionValid();
         }
     });
-    // 定时校验（每30秒，确保能检测到其他设备登录）
-    setInterval(checkSessionValid, 30000);
+    // 定时校验（每30秒）
+    window.__sessionInterval = setInterval(checkSessionValid, 30000);
 }
 
 /**
@@ -4736,7 +4734,7 @@ function saveSettingsBasicInfo() {
 // ============================================
 // 版本更新通知
 // ============================================
-const APP_VERSION = 'V2.2.13';
+const APP_VERSION = 'V2.2.14';
 const VERSION_LOG_KEY = 'nutri_seen_version';
 const VERSION_PREV_KEY = 'nutri_prev_version';  // 记录上次版本号，检测版本变更
 
@@ -4745,6 +4743,10 @@ const VERSION_PREV_KEY = 'nutri_prev_version';  // 记录上次版本号，检�
  * 每新增一个版本，加一条记录
  */
 const VERSION_NOTES = {
+    'V2.2.14': [
+        '🔐 单设备登录修复——checkSessionValid 用 refreshSession 返回的 data，不另调 getUser',
+        '🔄 initSessionMonitor 每次登入重新注册 interval，去掉只会执行一次的 guard',
+    ],
     'V2.2.13': [
         '🧹 家庭管理不再包含"本人"——本人信息只在设置页修改，消除两条线同步问题',
         '📝 家庭列表显示提示「本人的信息请在设置页修改」',
