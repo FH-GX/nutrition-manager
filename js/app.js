@@ -3035,12 +3035,24 @@ async function getRDI(age, gender) {
         if (!sb) return null;
         const group = getAgeGroup(age);
         const gen = getGenderLabel(gender);
-        const { data, error } = await sb
+        let { data, error } = await sb
             .from('dietary_reference_intakes')
             .select('*')
             .eq('age_group', group)
             .eq('gender', gen)
             .limit(1);
+        // 儿童通用（<7岁）用'通用'性别查
+        if (error || !data || data.length === 0) {
+            const result = await sb
+                .from('dietary_reference_intakes')
+                .select('*')
+                .eq('age_group', group)
+                .eq('gender', '通用')
+                .limit(1);
+            if (!result.error && result.data && result.data.length > 0) {
+                return result.data[0];
+            }
+        }
         if (error || !data || data.length === 0) return null;
         return data[0];
     } catch(e) {
