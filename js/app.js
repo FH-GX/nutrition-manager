@@ -4342,6 +4342,14 @@ async function switchFamilyMember(id) {
             weight: m.weight,
             activity: parseFloat(m.activity) || 1.55,
         });
+        // 同步到 Supabase（跨设备）
+        if (typeof syncBasicInfoToSupabase === 'function') {
+            syncBasicInfoToSupabase({
+                name: m.name, gender: m.gender, age: m.age,
+                height: m.height, weight: m.weight,
+                activity: parseFloat(m.activity) || 1.55,
+            });
+        }
     }
     // 更新导航栏显示
     updateFamilyNavDisplay();
@@ -4546,13 +4554,22 @@ function saveFamilyMemberForm() {
         if (msg) msg.textContent = '✅ 已更新';
     } else {
         const member = addFamilyMember(data);
-        // 如果是第一个成员，自动设为活跃
-        const active = getActiveFamilyMember();
-        if (!active) {
+        if (!getActiveFamilyMember()) {
             setActiveFamilyMember(member.id);
             activeFamilyId = member.id;
         }
         if (msg) msg.textContent = '✅ 已添加';
+    }
+
+    // 如果是"本人"，同步更新基本信息
+    if (data.relation === '本人') {
+        saveBasicInfo(data);
+        if (typeof syncBasicInfoToSupabase === 'function') {
+            syncBasicInfoToSupabase(data);
+        }
+        if (typeof renderBasicInfoSummary === 'function') {
+            renderBasicInfoSummary();
+        }
     }
 
     setTimeout(() => {
@@ -4719,7 +4736,7 @@ function saveSettingsBasicInfo() {
 // ============================================
 // 版本更新通知
 // ============================================
-const APP_VERSION = 'V2.2.11';
+const APP_VERSION = 'V2.2.12';
 const VERSION_LOG_KEY = 'nutri_seen_version';
 const VERSION_PREV_KEY = 'nutri_prev_version';  // 记录上次版本号，检测版本变更
 
@@ -4728,6 +4745,11 @@ const VERSION_PREV_KEY = 'nutri_prev_version';  // 记录上次版本号，检�
  * 每新增一个版本，加一条记录
  */
 const VERSION_NOTES = {
+    'V2.2.12': [
+        '🔧 家庭管理修改 → 自动同步基本信息 → 同步到 Supabase',
+        '🔄 switchFamilyMember 也同步到 Supabase（切换家庭成员时跨设备可见）',
+        '📱 修改"本人"成员 → saveBasicInfo + syncBasicInfoToSupabase 双写',
+    ],
     'V2.2.11': [
         '🔧 修复基本信息跨设备同步——syncAllFromSupabase 不再依赖 user_accounts',
         '📥 基本信息同步提到最前面，用 Auth 元数据直读，不受 userId 为空影响',
