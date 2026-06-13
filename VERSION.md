@@ -1,5 +1,17 @@
 # 版本日志 — 「今天，吃了吗？」
 
+## V2.2.5（修复单设备登录 + 改用 Auth 元数据 — 2026-06-13）
+
+### Bug 修复
+- **🔐 单设备登录重写**：`session_token` 不再写入 `user_settings` 表（RLS 关联 `user_accounts.id` 链路可能断裂），改为直接写入 Supabase Auth 的 `user_metadata` > `sb.auth.updateUser({ data: { session_id } })`，校验时 `sb.auth.getUser()` 读取，不需要查自定义表
+- **🔄 同步链路修复**：去掉了 `getCurrentAccountId()` 依赖（数据同步仍然用原有的 user_id 查询方式，不受影响）
+
+### 改动文件
+- `js/app.js`：`updateSessionToken` / `checkSessionValid` 重写，改用 `sb.auth.updateUser` / `sb.auth.getUser`
+- `js/survey.js`：loginUser / registerUser / initAuth 三处的 session token 调用更新（去掉 `getCurrentAccountId`）
+
+---
+
 ## V2.2.4（单设备登录 + 导航栏优化 — 2026-06-13）
 
 ### 新增功能

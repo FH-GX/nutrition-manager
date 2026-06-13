@@ -190,49 +190,38 @@ async function syncBasicInfoToSupabase(data) {
 }
 
 // ============================================
-// 单设备登录管理
+// 单设备登录管理（v2.2.5 改用 Auth 元数据）
 // ============================================
 
 /**
- * 将当前 session token 写入 Supabase user_settings.preferences.session_token
- * 后续登录时更新此值 → 旧设备检测到不一致 → 自动退出
+ * 将 session token 写入 Supabase Auth 用户元数据
+ * 不依赖自定义表 RLS，更可靠
  */
-async function updateSessionToken(userId, token) {
+async function updateSessionToken(token) {
     try {
         const sb = getSupabase();
-        const { data: existing } = await sb.from('user_settings')
-            .select('preferences')
-            .eq('user_id', userId)
-            .maybeSingle();
-        const mergedPrefs = { ...existing?.preferences, session_token: token };
-        await sb.from('user_settings').upsert({
-            user_id: userId,
-            preferences: mergedPrefs
-        }, { onConflict: 'user_id' });
+        if (!sb) return;
+        await sb.auth.updateUser({ data: { session_id: token } });
     } catch (e) { console.warn('updateSessionToken失败:', e.message); }
 }
 
 /**
- * 校验当前 session token 是否与云端一致
+ * 校验当前 session token 是否与 Auth 元数据一致
  * 不一致 → 弹提示并登出
  */
 async function checkSessionValid() {
     const localToken = getSessionToken();
-    if (!localToken) return; // 未登录或无 session
+    if (!localToken) return;
     try {
-        const userId = await getCurrentAccountId();
-        if (!userId) return;
         const sb = getSupabase();
-        const { data } = await sb.from('user_settings')
-            .select('preferences')
-            .eq('user_id', userId)
-            .maybeSingle();
-        const supToken = data?.preferences?.session_token;
-        if (supToken && supToken !== localToken) {
-            showToast('⚠️ 你的账号已在其他设备登录，请重新登录', 'error');
+        if (!sb) return;
+        const { data: { user } } = await sb.auth.getUser();
+        const metaToken = user?.user_metadata?.session_id;
+        if (metaToken && metaToken !== localToken) {
+            showToast('⚠️ 你的账号已在其他设备登录', 'error');
             setTimeout(() => logoutUser(), 1500);
         }
-    } catch (e) { /* 网络错误不处理，避免误退出 */ }
+    } catch (e) { /* 网络错误不处理 */ }
 }
 
 /**
@@ -4710,7 +4699,7 @@ function saveSettingsBasicInfo() {
 // ============================================
 // 版本更新通知
 // ============================================
-const APP_VERSION = 'V2.2.4';
+const APP_VERSION = 'V2.2.5';
 const VERSION_LOG_KEY = 'nutri_seen_version';
 const VERSION_PREV_KEY = 'nutri_prev_version';  // 记录上次版本号，检测版本变更
 
@@ -4719,6 +4708,10 @@ const VERSION_PREV_KEY = 'nutri_prev_version';  // 记录上次版本号，检�
  * 每新增一个版本，加一条记录
  */
 const VERSION_NOTES = {
+    'V2.2.5': [
+        '🔐 单设备登录改用 Auth 元数据——不再依赖 user_settings 表 RLS，session_token 直接存到 Supabase Auth 用户资料',
+        '🔄 修复数据不同步——重写 session 读写链路，登录/注册时写入，visibility 切回时校验',
+    ],
     'V2.2.4': [
         '🔐 单设备登录——手机/网页只能一个在线，另一设备自动退出',
         '🧭 导航栏精简——去掉「设置」按钮（右上角已有⚙️），5项→4项更紧凑',

@@ -34,11 +34,10 @@ function initAuth() {
                 doLogin(current);
 
                 // 确保本地有 session token（兼容老用户首次升级）
-                if (!getSessionToken()) {
+                if (!getSessionToken() && typeof updateSessionToken === 'function') {
                     const token = crypto.randomUUID();
                     saveSessionToken(token);
-                    const uid = await getCurrentAccountId();
-                    if (uid) updateSessionToken(uid, token);
+                    updateSessionToken(token);
                 }
 
                 // 同步云端数据（跨设备），doLogin 已调用 renderBasicInfoSummary()
@@ -214,8 +213,10 @@ async function registerUser() {
     // 写入 session token（单设备登录）
     const newToken = crypto.randomUUID();
     saveSessionToken(newToken);
-    const newUserId = await getCurrentAccountId();
-    if (newUserId) updateSessionToken(newUserId, newToken);
+    // 使用 Auth 元数据存储（不依赖 user_settings 表 RLS）
+    if (typeof updateSessionToken === 'function') {
+        updateSessionToken(newToken);
+    }
 }
 
 async function loginUser() {
@@ -253,8 +254,10 @@ async function loginUser() {
     // 生成 + 写入 session token（单设备登录）
     const sessionToken = crypto.randomUUID();
     saveSessionToken(sessionToken);
-    const uid = await getCurrentAccountId();
-    if (uid) updateSessionToken(uid, sessionToken);
+    // 使用 Auth 元数据存储（不依赖 user_settings 表 RLS）
+    if (typeof updateSessionToken === 'function') {
+        updateSessionToken(sessionToken);
+    }
 
     doLogin(name);
     // 登录通知
