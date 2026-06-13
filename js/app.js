@@ -271,8 +271,8 @@ function initSessionMonitor() {
             checkSessionValid();
         }
     });
-    // 定时校验（每30秒）
-    window.__sessionInterval = setInterval(checkSessionValid, 30000);
+    // 定时校验（每5秒，快速检测）
+    window.__sessionInterval = setInterval(checkSessionValid, 5000);
 }
 
 /**
