@@ -215,6 +215,8 @@ async function checkSessionValid() {
     try {
         const sb = getSupabase();
         if (!sb) return;
+        // 刷新确保拿到最新 user 数据
+        await sb.auth.refreshSession();
         const { data: { user } } = await sb.auth.getUser();
         const metaToken = user?.user_metadata?.session_id;
         if (metaToken && metaToken !== localToken) {
@@ -225,17 +227,20 @@ async function checkSessionValid() {
 }
 
 /**
- * 启动 session 监控（页面切回时校验）
+ * 启动 session 监控（页面切回 + 定时校验）
  */
 let sessionMonitorInited = false;
 function initSessionMonitor() {
     if (sessionMonitorInited) return;
     sessionMonitorInited = true;
+    // 页面切回时校验
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') {
             checkSessionValid();
         }
     });
+    // 定时校验（每30秒，确保能检测到其他设备登录）
+    setInterval(checkSessionValid, 30000);
 }
 
 /**
@@ -4699,7 +4704,7 @@ function saveSettingsBasicInfo() {
 // ============================================
 // 版本更新通知
 // ============================================
-const APP_VERSION = 'V2.2.5';
+const APP_VERSION = 'V2.2.6';
 const VERSION_LOG_KEY = 'nutri_seen_version';
 const VERSION_PREV_KEY = 'nutri_prev_version';  // 记录上次版本号，检测版本变更
 
@@ -4708,6 +4713,11 @@ const VERSION_PREV_KEY = 'nutri_prev_version';  // 记录上次版本号，检�
  * 每新增一个版本，加一条记录
  */
 const VERSION_NOTES = {
+    'V2.2.6': [
+        '🔐 单设备登录加强——updateSessionToken 改为 await（确保登录时写完再继续）',
+        '⏰ 每30秒自动校验 session——即使 visibilitychange 不触发也能检测到',
+        '🔄 getUser 前先 refreshSession——确保读到最新 Auth 元数据',
+    ],
     'V2.2.5': [
         '🔐 单设备登录改用 Auth 元数据——不再依赖 user_settings 表 RLS，session_token 直接存到 Supabase Auth 用户资料',
         '🔄 修复数据不同步——重写 session 读写链路，登录/注册时写入，visibility 切回时校验',

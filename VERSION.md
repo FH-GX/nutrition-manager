@@ -1,5 +1,18 @@
 # 版本日志 — 「今天，吃了吗？」
 
+## V2.2.6（单设备登录加强 — 2026-06-13）
+
+### 修复
+- **await updateSessionToken**：登录/注册时的 token 写入改为 await，确保完成再继续
+- **每30秒定时校验**：除 visibilitychange 外增加 setInterval(30000) 兜底
+- **getUser 前 refreshSession**：确保读到最新的 Auth 元数据，不走缓存
+
+### 改动文件
+- `js/app.js`：updateSessionToken await、checkSessionValid 加 refreshSession、initSessionMonitor 加 setInterval
+- `js/survey.js`：loginUser/registerUser/initAuth 三处 updateSessionToken 加 await + try/catch 日志
+
+---
+
 ## V2.2.5（修复单设备登录 + 改用 Auth 元数据 — 2026-06-13）
 
 ### Bug 修复

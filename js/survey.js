@@ -37,7 +37,12 @@ function initAuth() {
                 if (!getSessionToken() && typeof updateSessionToken === 'function') {
                     const token = crypto.randomUUID();
                     saveSessionToken(token);
-                    updateSessionToken(token);
+                    try {
+                        await updateSessionToken(token);
+                        console.log('✅ session token 写入成功（老用户升级）');
+                    } catch(e) {
+                        console.warn('⚠️ session token 写入失败（老用户升级）:', e.message);
+                    }
                 }
 
                 // 同步云端数据（跨设备），doLogin 已调用 renderBasicInfoSummary()
@@ -213,9 +218,13 @@ async function registerUser() {
     // 写入 session token（单设备登录）
     const newToken = crypto.randomUUID();
     saveSessionToken(newToken);
-    // 使用 Auth 元数据存储（不依赖 user_settings 表 RLS）
-    if (typeof updateSessionToken === 'function') {
-        updateSessionToken(newToken);
+    try {
+        if (typeof updateSessionToken === 'function') {
+            await updateSessionToken(newToken);
+            console.log('✅ session token 已写入 Auth 元数据');
+        }
+    } catch(e) {
+        console.warn('⚠️ session token 写入失败:', e.message);
     }
 }
 
@@ -254,9 +263,13 @@ async function loginUser() {
     // 生成 + 写入 session token（单设备登录）
     const sessionToken = crypto.randomUUID();
     saveSessionToken(sessionToken);
-    // 使用 Auth 元数据存储（不依赖 user_settings 表 RLS）
-    if (typeof updateSessionToken === 'function') {
-        updateSessionToken(sessionToken);
+    try {
+        if (typeof updateSessionToken === 'function') {
+            await updateSessionToken(sessionToken);
+            console.log('✅ session token 已写入 Auth 元数据:', sessionToken);
+        }
+    } catch(e) {
+        console.warn('⚠️ session token 写入失败:', e.message);
     }
 
     doLogin(name);
