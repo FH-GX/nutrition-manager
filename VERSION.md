@@ -1,6 +1,23 @@
 # 版本日志 — 「今天，吃了吗？」
 
-## V2.2.8（基本信息同步改用 Auth 元数据 — 2026-06-13）
+## V2.2.9（回滚到稳定版 + 保留数据同步修复 — 2026-06-13）
+
+### 说明
+- `js/app.js` 回滚到 V2.2.6（单设备登录已验证通过）
+- 保留 V2.2.7 的 `js/supabase.js` 修复（getCurrentAccountId 自动创建 user_accounts）
+- 去掉 V2.2.8 的 Auth 元数据双写（可能干扰 session_token）
+
+### 数据同步路径
+保存时：`saveCalcBasicInfo` → `syncBasicInfoToSupabase` → `getCurrentAccountId`（自动创建）→ `user_settings.upsert`
+读取时：`syncAllFromSupabase` → `user_settings` 表查询
+
+### 改动文件
+- `js/app.js`：回滚到 V2.2.6（session 逻辑已验证通过）
+- `js/supabase.js`：保留 V2.2.7 的 auto-create 修复
+
+---
+
+## V2.2.8（⚠ 已回滚）（基本信息同步改用 Auth 元数据 — 2026-06-13）
 
 ### 修复
 - **基本信息跨设备同步**：`syncBasicInfoToSupabase` 写入 Auth 元数据（`sb.auth.updateUser`）+ `user_settings` 双写
