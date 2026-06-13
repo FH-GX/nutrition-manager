@@ -1,5 +1,16 @@
 # 版本日志 — 「今天，吃了吗？」
 
+## V2.2.8（基本信息同步改用 Auth 元数据 — 2026-06-13）
+
+### 修复
+- **基本信息跨设备同步**：`syncBasicInfoToSupabase` 写入 Auth 元数据（`sb.auth.updateUser`）+ `user_settings` 双写
+- **读取增强**：`syncAllFromSupabase` 优先读 Auth 元数据，读不到再读 `user_settings`（向后兼容）
+
+### 改动文件
+- `js/app.js`：syncBasicInfoToSupabase 双写；syncAllFromSupabase 双读
+
+---
+
 ## V2.2.7（修复数据不同步根因 — 2026-06-13）
 
 ### 根因
