@@ -194,6 +194,35 @@ async function syncBasicInfoToSupabase(data) {
     } catch (e) { console.warn('syncBasicInfoToSupabase失败:', e.message); }
 }
 
+/**
+ * 将基本信息同步到家庭成员
+ */
+function syncBasicInfoToFamily(info) {
+    if (!info) return;
+    const members = getFamilyMembers();
+    let self = members.find(m => m.relation === '本人');
+    if (self) {
+        updateFamilyMember(self.id, {
+            name: info.name || self.name,
+            gender: info.gender || self.gender,
+            age: info.age || self.age,
+            height: info.height || self.height,
+            weight: info.weight || self.weight,
+            activity: String(info.activity || '1.55'),
+        });
+    } else {
+        addFamilyMember({
+            name: info.name || getCurrentSessionUser()?.split('@')[0] || '我',
+            relation: '本人',
+            gender: info.gender || 'male',
+            age: info.age || 30,
+            height: info.height || 170,
+            weight: info.weight || 65,
+            activity: String(info.activity || '1.55'),
+        });
+    }
+}
+
 // ============================================
 // 单设备登录管理（v2.2.5 改用 Auth 元数据）
 // ============================================
@@ -254,11 +283,25 @@ function initSessionMonitor() {
  */
 async function syncAllFromSupabase() {
     try {
+        const sb = getSupabase();
+        if (!sb) return;
+
+        // 0. 优先同步基本信息（Auth 元数据，不依赖 user_accounts）
+        try {
+            await sb.auth.refreshSession();
+            const { data: { user } } = await sb.auth.getUser();
+            if (user?.user_metadata?.basic_info) {
+                saveBasicInfo(user.user_metadata.basic_info);
+                // 同步到家庭成员
+                syncBasicInfoToFamily(user.user_metadata.basic_info);
+            }
+        } catch (eAuth) {
+            console.warn('Auth元数据读取失败（基本信息）:', eAuth.message);
+        }
+
         try {
             const userId = await getCurrentAccountId();
             if (!userId) return;
-            const sb = getSupabase();
-            if (!sb) return;
 
             // 1. 同步方案历史（合并模式：本地优先，Supabase补缺）
         const { data: plans } = await sb.from('meal_plans')
@@ -314,58 +357,6 @@ async function syncAllFromSupabase() {
             .eq('log_date', '2000-01-01');
         if (debts && debts.length > 0 && debts[0].queue_data) {
             localStorage.setItem(getStorageKey('debt'), JSON.stringify(debts[0].queue_data));
-        }
-
-        // 4. 同步基本信息（主：Auth 元数据 → 辅：user_settings 表）
-        let basicInfo = null;
-
-        // 主通路：Auth 元数据（与 session_token 同路，已验证通过）
-        try {
-            const { data: { user } } = await sb.auth.getUser();
-            if (user?.user_metadata?.basic_info) {
-                basicInfo = user.user_metadata.basic_info;
-            }
-        } catch (eAuth) { /* user_settings 兜底 */ }
-
-        // 辅通路：user_settings 表
-        if (!basicInfo) {
-            try {
-                const { data: settings } = await sb.from('user_settings')
-                    .select('preferences')
-                    .eq('user_id', userId)
-                    .single();
-                if (settings?.preferences?.basic_info) {
-                    basicInfo = settings.preferences.basic_info;
-                }
-            } catch (eSet) { /* 静默 */ }
-        }
-
-        if (basicInfo) {
-            saveBasicInfo(basicInfo);
-            // 同步到家庭成员
-            const members = getFamilyMembers();
-            const info = basicInfo;
-            let self = members.find(m => m.relation === '本人');
-            if (self) {
-                updateFamilyMember(self.id, {
-                    name: info.name || self.name,
-                    gender: info.gender || self.gender,
-                    age: info.age || self.age,
-                    height: info.height || self.height,
-                    weight: info.weight || self.weight,
-                    activity: String(info.activity || '1.55'),
-                });
-            } else {
-                addFamilyMember({
-                    name: info.name || getCurrentSessionUser()?.split('@')[0] || '我',
-                    relation: '本人',
-                    gender: info.gender || 'male',
-                    age: info.age || 30,
-                    height: info.height || 170,
-                    weight: info.weight || 65,
-                    activity: String(info.activity || '1.55'),
-                });
-            }
         }
 
         } catch (e) {
@@ -4728,7 +4719,7 @@ function saveSettingsBasicInfo() {
 // ============================================
 // 版本更新通知
 // ============================================
-const APP_VERSION = 'V2.2.10';
+const APP_VERSION = 'V2.2.11';
 const VERSION_LOG_KEY = 'nutri_seen_version';
 const VERSION_PREV_KEY = 'nutri_prev_version';  // 记录上次版本号，检测版本变更
 
@@ -4737,6 +4728,10 @@ const VERSION_PREV_KEY = 'nutri_prev_version';  // 记录上次版本号，检�
  * 每新增一个版本，加一条记录
  */
 const VERSION_NOTES = {
+    'V2.2.11': [
+        '🔧 修复基本信息跨设备同步——syncAllFromSupabase 不再依赖 user_accounts',
+        '📥 基本信息同步提到最前面，用 Auth 元数据直读，不受 userId 为空影响',
+    ],
     'V2.2.10': [
         '📡 基本信息读写改用 Auth 元数据——session_token 同路，已验证通过的路径',
         '🔧 根因：user_accounts 表缺 INSERT RLS 策略，getCurrentAccountId 自动创建失败',
