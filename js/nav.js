@@ -22,7 +22,10 @@ const NAV_ITEMS = {
  */
 function renderNav(containerId, activeKey, customKeys) {
     const keys = customKeys || getDefaultNavKeys();
-    const html = keys.map(key => {
+    // 用户芯片（桌面端隐藏，手机端显示）
+    const userName = getNavDisplayName();
+    const userChip = `<div class="nav-user-chip" onclick="toggleFamilyDropdown()">👤 ${userName} <span class="nav-user-arrow">▼</span></div>`;
+    const html = userChip + keys.map(key => {
         const item = NAV_ITEMS[key];
         if (!item) return '';
         const activeClass = key === activeKey ? ' active' : '';
@@ -46,7 +49,15 @@ function getDefaultNavKeys() {
     } catch(e) {}
     const hasData = info && info.height && info.weight && tier && tier.ratio;
     if (hasData) {
-        return ['plan', 'checkin', 'history', 'foodDb', 'settings'];
+        return ['plan', 'checkin', 'history', 'foodDb'];
     }
-    return ['calculator', 'checkin', 'history', 'foodDb', 'settings'];
+    return ['calculator', 'checkin', 'history', 'foodDb'];
+}
+
+/**
+ * 获取当前用户显示名（邮箱@前的部分）
+ */
+function getNavDisplayName() {
+    const raw = (typeof surveyState !== 'undefined' && surveyState.currentUser) || getCurrentSessionUser() || '用户';
+    return raw.split('@')[0];
 }

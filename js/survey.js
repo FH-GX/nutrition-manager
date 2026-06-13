@@ -32,6 +32,15 @@ function initAuth() {
             const current = getCurrentSessionUser();
             if (current) {
                 doLogin(current);
+
+                // 确保本地有 session token（兼容老用户首次升级）
+                if (!getSessionToken()) {
+                    const token = crypto.randomUUID();
+                    saveSessionToken(token);
+                    const uid = await getCurrentAccountId();
+                    if (uid) updateSessionToken(uid, token);
+                }
+
                 // 同步云端数据（跨设备），doLogin 已调用 renderBasicInfoSummary()
                 // syncAllFromSupabase 完成后 finally 会再次刷新（用云端最新数据）
                 if (typeof syncAllFromSupabase === 'function') {
@@ -201,6 +210,12 @@ async function registerUser() {
 
     // 新用户无需同步云端数据（Supabase里没有）
     // doLogin 已调用 renderBasicInfoSummary()（新用户显示"暂未设置"）
+
+    // 写入 session token（单设备登录）
+    const newToken = crypto.randomUUID();
+    saveSessionToken(newToken);
+    const newUserId = await getCurrentAccountId();
+    if (newUserId) updateSessionToken(newUserId, newToken);
 }
 
 async function loginUser() {
@@ -234,6 +249,12 @@ async function loginUser() {
     }
 
     setCurrentSessionUser(name);
+
+    // 生成 + 写入 session token（单设备登录）
+    const sessionToken = crypto.randomUUID();
+    saveSessionToken(sessionToken);
+    const uid = await getCurrentAccountId();
+    if (uid) updateSessionToken(uid, sessionToken);
 
     doLogin(name);
     // 登录通知
@@ -289,6 +310,11 @@ function doLogin(name) {
 
     // 渲染导航栏（doLogin 之前未调用 renderNav，导致导航栏为空）
     renderNav('nav-calculatorSection', 'calculator');
+
+    // 启动 session 监控（自动检测多设备登录）
+    if (typeof initSessionMonitor === 'function') {
+        initSessionMonitor();
+    }
 }
 
 function switchUser(name) {
@@ -318,6 +344,8 @@ function logoutUser() {
     userSignOut();
     
     clearCurrentSessionUser();
+    // 清除 session token（下次登录重新生成，旧设备 token 失效）
+    clearSessionToken();
     // 退出时不删除保存的密码，只清除当前会话
     surveyState.currentUser = null;
     resetSurveyData();
@@ -571,11 +599,15 @@ async function skipSurvey() {
  * 方案生成active tab）
  */
 function renderResultNav() {
-    // 固定按钮：方案生成（active，无onclick）
-    let html = '<button class="nav-btn active">📊 方案生成</button>';
+    // 用户芯片（桌面端隐藏，手机端显示）
+    const userName = (typeof getNavDisplayName === 'function') ? getNavDisplayName() : '用户';
+    let html = `<div class="nav-user-chip" onclick="toggleFamilyDropdown()">👤 ${userName} <span class="nav-user-arrow">▼</span></div>`;
 
-    // 共享按钮：结果页不需要打卡（已在方案页），去掉避免两行
-    const keys = ['checkin', 'history', 'foodDb', 'settings'];
+    // 固定按钮：方案生成（active，无onclick）
+    html += '<button class="nav-btn active">📊 方案生成</button>';
+
+    // 共享按钮：去掉settings（已在右上角），去掉打卡（已在方案页）
+    const keys = ['checkin', 'history', 'foodDb'];
     for (const key of keys) {
         const item = NAV_ITEMS[key];
         if (item) {

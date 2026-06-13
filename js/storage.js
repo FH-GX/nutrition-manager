@@ -301,6 +301,7 @@ const KEY_CURRENT = 'today_eaten_current';
 const KEY_SAVED_CREDENTIALS = 'today_eaten_saved_creds';
 const KEY_USERS = 'today_eaten_users';
 const KEY_REGISTER_CODE = 'nutri_register_code';
+const KEY_SESSION_TOKEN = 'nutri_session_token';
 
 /** 获取当前登录用户标识 */
 function getCurrentSessionUser() {
@@ -315,6 +316,25 @@ function setCurrentSessionUser(name) {
 /** 清除当前登录用户 */
 function clearCurrentSessionUser() {
     localStorage.removeItem(KEY_CURRENT);
+}
+
+// ============================================
+// 单设备登录 — session token
+// ============================================
+
+/** 保存当前设备的 session token */
+function saveSessionToken(token) {
+    localStorage.setItem(KEY_SESSION_TOKEN, token);
+}
+
+/** 获取当前设备的 session token */
+function getSessionToken() {
+    return localStorage.getItem(KEY_SESSION_TOKEN);
+}
+
+/** 清除 session token */
+function clearSessionToken() {
+    localStorage.removeItem(KEY_SESSION_TOKEN);
 }
 
 /** 保存登录凭据（仅存邮箱，不存密码） */

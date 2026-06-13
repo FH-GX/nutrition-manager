@@ -1,5 +1,28 @@
 # 版本日志 — 「今天，吃了吗？」
 
+## V2.2.4（单设备登录 + 导航栏优化 — 2026-06-13）
+
+### 新增功能
+- **🔐 单设备登录**：同一账号手机和网页只能一个在线。登录时生成随机 session_token 存入 Supabase，页面切回时校验一致性，不匹配自动退出
+- **🧭 导航栏去掉设置按钮**：右上角已有⚙️，导航栏5项→4项（设置按钮移除）
+
+### 界面优化
+- **📱 手机端昵称合并到导航栏**：header-right 只留图标，昵称移到导航栏首位（可点击切换家人）
+- **🔄 保存/同步后导航自动刷新**：保存基本信息或云端同步完成后，导航栏自动更新
+
+### Bug 修复
+- **syncBasicInfoToSupabase 覆盖写入**：preferences 改为 merge 模式，避免 session_token 被 basic_info 覆盖
+- **导航栏不刷新**：saveCalcBasicInfo 和 syncAllFromSupabase finally 块补上 renderNav 调用
+
+### 改动文件
+- `js/app.js`：saveCalcBasicInfo 增加 renderNav；syncAllFromSupabase finally 增加 renderNav；syncBasicInfoToSupabase 改为 merge 写入；新增 updateSessionToken/checkSessionValid/initSessionMonitor 三个函数
+- `js/nav.js`：getDefaultNavKeys 去掉 settings；renderNav 增加用户芯片；新增 getNavDisplayName
+- `js/survey.js`：renderResultNav 去掉 settings+加用户芯片；loginUser/registerUser/initAuth 增加 session token 生成写入；logoutUser 清除 session token；doLogin 启动 session 监控
+- `js/storage.js`：新增 session token 常量+三个函数
+- `css/survey.css`：新增 nav-user-chip 样式；手机端隐藏 family-switcher
+
+---
+
 ## V2.2.3（打卡体验优化 — 2026-06-12）
 
 ### Bug 修复

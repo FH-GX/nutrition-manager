@@ -374,6 +374,29 @@ header {
     overflow-x: auto;    /* 内容过多时横向滚动而不折行 */
 }
 
+/* 用户导航芯片（桌面端隐藏，手机端导航栏第一项显示） */
+.nav-user-chip {
+    display: none;  /* 默认隐藏，桌面端不显示 */
+    align-items: center;
+    gap: 3px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    font-size: 0.78rem;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    background: #e8f5e9;
+    color: #2e7d32;
+    flex-shrink: 0;
+}
+.nav-user-chip:hover {
+    background: #c8e6c9;
+}
+.nav-user-arrow {
+    font-size: 0.6rem;
+    margin-left: 2px;
+}
+
 .nav-btn {
     padding: 8px 12px;
     border: 2px solid var(--primary);
@@ -797,6 +820,15 @@ header {
     }
     .header-logout-btn .logout-text {
         display: none;
+    }
+    /* 手机端隐藏家庭切换（已合并到导航栏用户芯片） */
+    .family-switcher {
+        display: none !important;
+    }
+
+    /* 手机端显示导航用户芯片 */
+    .nav-user-chip {
+        display: inline-flex;
     }
 
     .nav-tabs {
