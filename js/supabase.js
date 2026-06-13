@@ -395,16 +395,41 @@ async function getCurrentAccountId() {
 
         const session = await checkUserSession();
         if (!session.loggedIn) return null;
+        if (!session.user) return null;
 
+        // 查 user_accounts 表
         const { data, error } = await sb
             .from('user_accounts')
             .select('id')
             .eq('auth_id', session.user.id)
+            .maybeSingle();
+
+        if (data && data.id) return data.id;
+
+        // 没有记录 → 自动创建（兼容老用户/跨设备首次同步）
+        if (error && error.code !== 'PGRST116') {
+            console.warn('getCurrentAccountId查询异常:', error.message);
+        }
+
+        console.log('🆕 user_accounts 无记录，自动创建...');
+        const { data: insertData, error: insertError } = await sb
+            .from('user_accounts')
+            .insert({
+                auth_id: session.user.id,
+                username: session.user.email || 'unknown',
+                role: 'user',
+            })
+            .select('id')
             .single();
 
-        if (error || !data) return null;
-        return data.id;
-    } catch {
+        if (insertError) {
+            console.warn('创建 user_accounts 失败:', insertError.message);
+            return null;
+        }
+        console.log('✅ user_accounts 已创建，id=' + insertData.id);
+        return insertData.id;
+    } catch (e) {
+        console.warn('getCurrentAccountId异常:', e.message);
         return null;
     }
 }

@@ -4704,7 +4704,7 @@ function saveSettingsBasicInfo() {
 // ============================================
 // 版本更新通知
 // ============================================
-const APP_VERSION = 'V2.2.6';
+const APP_VERSION = 'V2.2.7';
 const VERSION_LOG_KEY = 'nutri_seen_version';
 const VERSION_PREV_KEY = 'nutri_prev_version';  // 记录上次版本号，检测版本变更
 
@@ -4713,6 +4713,10 @@ const VERSION_PREV_KEY = 'nutri_prev_version';  // 记录上次版本号，检�
  * 每新增一个版本，加一条记录
  */
 const VERSION_NOTES = {
+    'V2.2.7': [
+        '🔧 修复数据不同步根因——getCurrentAccountId 查询不到 user_accounts 记录时自动创建',
+        '🔄 老用户/devices之前没有 user_accounts 行，syncBasicInfoToSupabase 全部静默失败',
+    ],
     'V2.2.6': [
         '🔐 单设备登录加强——updateSessionToken 改为 await（确保登录时写完再继续）',
         '⏰ 每30秒自动校验 session——即使 visibilitychange 不触发也能检测到',

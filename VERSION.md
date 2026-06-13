@@ -1,5 +1,21 @@
 # 版本日志 — 「今天，吃了吗？」
 
+## V2.2.7（修复数据不同步根因 — 2026-06-13）
+
+### 根因
+`getCurrentAccountId()` 查询 `user_accounts` 表找不到记录时直接返回 `null`，导致 `syncBasicInfoToSupabase` 全部静默退出，云端数据一直没写进去。其他设备自然拉不到。
+
+影响范围：所有未在 `user_accounts` 表中有记录的 Supabase Auth 用户。
+
+### 修复
+- `getCurrentAccountId()` 查询不到记录时**自动创建**（insert + auth_id/username/role）
+- 一次登录后自动补全，后续同步正常
+
+### 改动文件
+- `js/supabase.js`：getCurrentAccountId 增加自动创建逻辑
+
+---
+
 ## V2.2.6（单设备登录加强 — 2026-06-13）
 
 ### 修复
