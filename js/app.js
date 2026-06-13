@@ -4440,7 +4440,8 @@ function renderFamilyMembers() {
         return;
     }
 
-    container.innerHTML = members.map(m => {
+    container.innerHTML = '<p style="color:var(--text-light);font-size:0.78rem;margin-bottom:8px;">本人的信息请在<b>设置页</b>修改，家庭管理仅管理其他成员</p>' + 
+    members.filter(m => m.relation !== '本人').map(m => {
         const isActive = active && active.id === m.id;
         const emoji = getRelationEmoji(m.relation);
         const genderText = m.gender === 'female' ? '女' : '男';
@@ -4484,7 +4485,6 @@ function showAddFamilyMember() {
                         <option value="妈妈">妈妈</option>
                         <option value="爷爷">爷爷</option>
                         <option value="奶奶">奶奶</option>
-                        <option value="本人">本人</option>
                         <option value="其他">其他</option>
                     </select>
                 </div>
@@ -4736,7 +4736,7 @@ function saveSettingsBasicInfo() {
 // ============================================
 // 版本更新通知
 // ============================================
-const APP_VERSION = 'V2.2.12';
+const APP_VERSION = 'V2.2.13';
 const VERSION_LOG_KEY = 'nutri_seen_version';
 const VERSION_PREV_KEY = 'nutri_prev_version';  // 记录上次版本号，检测版本变更
 
@@ -4745,6 +4745,11 @@ const VERSION_PREV_KEY = 'nutri_prev_version';  // 记录上次版本号，检�
  * 每新增一个版本，加一条记录
  */
 const VERSION_NOTES = {
+    'V2.2.13': [
+        '🧹 家庭管理不再包含"本人"——本人信息只在设置页修改，消除两条线同步问题',
+        '📝 家庭列表显示提示「本人的信息请在设置页修改」',
+        '❌ 添加家人表单移除"本人"选项',
+    ],
     'V2.2.12': [
         '🔧 家庭管理修改 → 自动同步基本信息 → 同步到 Supabase',
         '🔄 switchFamilyMember 也同步到 Supabase（切换家庭成员时跨设备可见）',
