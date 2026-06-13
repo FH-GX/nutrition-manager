@@ -170,22 +170,27 @@ async function syncDebtQueueToSupabase(queue) {
 /**
  * 同步基本信息到 Supabase（user_settings 表的 basic_info 字段）
  */
+/**
+ * 保存基本信息 → Auth 元数据（已验证通过，与 session_token 同路）
+ * user_accounts 表缺少 INSERT RLS 策略，getCurrentAccountId 会失败
+ */
 async function syncBasicInfoToSupabase(data) {
     try {
-        const userId = await getCurrentAccountId();
-        if (!userId) return;
         const sb = getSupabase();
         if (!sb) return;
-        // 合并写入 preferences，避免覆盖 session_token 等其他字段
-        const { data: existing } = await sb.from('user_settings')
-            .select('preferences')
-            .eq('user_id', userId)
-            .maybeSingle();
-        const mergedPrefs = { ...existing?.preferences, basic_info: data || null };
-        await sb.from('user_settings').upsert({
-            user_id: userId,
-            preferences: mergedPrefs
-        }, { onConflict: 'user_id' });
+        // 主通路：Auth 元数据（不依赖自定义表 RLS）
+        const token = getSessionToken(); // 保留现有 session_id
+        await sb.auth.updateUser({
+            data: { basic_info: data || null, session_id: token }
+        });
+        // 辅通路：user_settings 表（如果 user_accounts 有记录）
+        const userId = await getCurrentAccountId();
+        if (userId) {
+            await sb.from('user_settings').upsert({
+                user_id: userId,
+                preferences: { basic_info: data || null }
+            }, { onConflict: 'user_id' });
+        }
     } catch (e) { console.warn('syncBasicInfoToSupabase失败:', e.message); }
 }
 
@@ -311,16 +316,35 @@ async function syncAllFromSupabase() {
             localStorage.setItem(getStorageKey('debt'), JSON.stringify(debts[0].queue_data));
         }
 
-        // 4. 同步基本信息（云端数据覆盖本地，同时同步到家庭成员）
-        const { data: settings } = await sb.from('user_settings')
-            .select('preferences')
-            .eq('user_id', userId)
-            .single();
-        if (settings?.preferences?.basic_info) {
-            saveBasicInfo(settings.preferences.basic_info);
-            // 同步到家庭成员（查找"本人"成员并更新，不存在则创建）
+        // 4. 同步基本信息（主：Auth 元数据 → 辅：user_settings 表）
+        let basicInfo = null;
+
+        // 主通路：Auth 元数据（与 session_token 同路，已验证通过）
+        try {
+            const { data: { user } } = await sb.auth.getUser();
+            if (user?.user_metadata?.basic_info) {
+                basicInfo = user.user_metadata.basic_info;
+            }
+        } catch (eAuth) { /* user_settings 兜底 */ }
+
+        // 辅通路：user_settings 表
+        if (!basicInfo) {
+            try {
+                const { data: settings } = await sb.from('user_settings')
+                    .select('preferences')
+                    .eq('user_id', userId)
+                    .single();
+                if (settings?.preferences?.basic_info) {
+                    basicInfo = settings.preferences.basic_info;
+                }
+            } catch (eSet) { /* 静默 */ }
+        }
+
+        if (basicInfo) {
+            saveBasicInfo(basicInfo);
+            // 同步到家庭成员
             const members = getFamilyMembers();
-            const info = settings.preferences.basic_info;
+            const info = basicInfo;
             let self = members.find(m => m.relation === '本人');
             if (self) {
                 updateFamilyMember(self.id, {
@@ -4704,7 +4728,7 @@ function saveSettingsBasicInfo() {
 // ============================================
 // 版本更新通知
 // ============================================
-const APP_VERSION = 'V2.2.9';
+const APP_VERSION = 'V2.2.10';
 const VERSION_LOG_KEY = 'nutri_seen_version';
 const VERSION_PREV_KEY = 'nutri_prev_version';  // 记录上次版本号，检测版本变更
 
@@ -4713,6 +4737,12 @@ const VERSION_PREV_KEY = 'nutri_prev_version';  // 记录上次版本号，检�
  * 每新增一个版本，加一条记录
  */
 const VERSION_NOTES = {
+    'V2.2.10': [
+        '📡 基本信息读写改用 Auth 元数据——session_token 同路，已验证通过的路径',
+        '🔧 根因：user_accounts 表缺 INSERT RLS 策略，getCurrentAccountId 自动创建失败',
+        '📤 写：sb.auth.updateUser({ data: { basic_info, session_id } })',
+        '📥 读：sb.auth.getUser() → user_metadata → basic_info',
+    ],
     'V2.2.9': [
         '🔙 回滚到 V2.2.6 稳定版（单设备登录已验证通过）+ V2.2.7 supabase.js 修复',
         '📡 数据同步链路：getCurrentAccountId 自动创建 user_accounts → syncBasicInfoToSupabase 有 ID 可写',
