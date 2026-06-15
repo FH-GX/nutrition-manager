@@ -166,7 +166,7 @@ const FOOD_DATABASE = [
     name: '玉米（鲜）',
     category: '谷类',
     aliases: ['甜玉米', '苞米'],
-    per100g: { calories: 348, protein: 8.7, fat: 3.8, carbs: 73, fiber: 6.4, cholesterol: 0, omega3: 30, omega6: 300,
+    per100g: { calories: 112, protein: 3.3, fat: 1.2, carbs: 22, fiber: 6.4, cholesterol: 0, omega3: 30, omega6: 300,
       minerals: {
         ca: null,
         fe: null,
@@ -571,7 +571,7 @@ const FOOD_DATABASE = [
     name: '山药',
     category: '薯类',
     aliases: ['淮山'],
-    per100g: { calories: 327, protein: 9.4, fat: 1, carbs: 70.8, fiber: 1.4, cholesterol: 0, omega3: 1, omega6: 20,
+    per100g: { calories: 56, protein: 1.9, fat: 0.2, carbs: 12.4, fiber: 1.4, cholesterol: 0, omega3: 1, omega6: 20,
       minerals: {
         ca: null,
         fe: null,
@@ -680,8 +680,8 @@ const FOOD_DATABASE = [
     id: 8,
     name: '芋头',
     category: '薯类',
-    aliases: ['芋艿'],
-    per100g: { calories: 60, protein: 2.9, fat: 0.1, carbs: 13, fiber: 0.3, cholesterol: 0, omega3: 2, omega6: 30,
+    aliases: ['芋'],
+    per100g: { calories: 60, protein: 2.2, fat: 0.2, carbs: 12.7, fiber: 0.3, cholesterol: 0, omega3: 2, omega6: 30,
       minerals: {
         ca: null,
         fe: null,
@@ -718,7 +718,7 @@ const FOOD_DATABASE = [
     name: '马铃薯（土豆）',
     category: '薯类',
     aliases: ['土豆', '洋芋'],
-    per100g: { calories: 65, protein: 3.2, fat: 0.1, carbs: 14.2, fiber: 0.2, cholesterol: 0, omega3: 3, omega6: 30,
+    per100g: { calories: 77, protein: 2.0, fat: 0.1, carbs: 17.4, fiber: 0.2, cholesterol: 0, omega3: 3, omega6: 30,
       minerals: {
         ca: null,
         fe: null,
@@ -2220,7 +2220,7 @@ const FOOD_DATABASE = [
     name: '菠菜',
     category: '蔬菜',
     aliases: ['菠菜'],
-    per100g: { calories: 308, protein: 6.4, fat: 0.6, carbs: 75.7, fiber: 12.7, cholesterol: 0, omega3: 30, omega6: 130,
+    per100g: { calories: 24, protein: 2.6, fat: 0.3, carbs: 3.6, fiber: 12.7, cholesterol: 0, omega3: 30, omega6: 130,
       minerals: {
         ca: null,
         fe: null,
@@ -3092,7 +3092,7 @@ const FOOD_DATABASE = [
     name: '桃',
     category: '水果',
     aliases: ['桃子'],
-    per100g: { calories: 60, protein: 0.3, fat: 0.2, carbs: 14.5, fiber: 1.3, cholesterol: 0, omega3: 3, omega6: 30,
+    per100g: { calories: 46, protein: 0.9, fat: 0.2, carbs: 10.2, fiber: 1.3, cholesterol: 0, omega3: 3, omega6: 30,
       minerals: {
         ca: null,
         fe: null,
@@ -3203,7 +3203,7 @@ const FOOD_DATABASE = [
     name: '樱桃',
     category: '水果',
     aliases: [],
-    per100g: { calories: 304, protein: 11.4, fat: 3.9, carbs: 59.8, fiber: 7.9, cholesterol: null, omega3: null, omega6: null,
+    per100g: { calories: 46, protein: 1.1, fat: 0.2, carbs: 10.2, fiber: 7.9, cholesterol: null, omega3: null, omega6: null,
       minerals: {
         ca: null,
         fe: null,
@@ -3610,7 +3610,7 @@ const FOOD_DATABASE = [
     name: '葡萄',
     category: '水果',
     aliases: ['葡萄'],
-    per100g: { calories: 344, protein: 2.5, fat: 0.4, carbs: 83.4, fiber: 1.6, cholesterol: 0, omega3: 3, omega6: 30,
+    per100g: { calories: 43, protein: 0.5, fat: 0.2, carbs: 10.3, fiber: 1.6, cholesterol: 0, omega3: 3, omega6: 30,
       minerals: {
         ca: null,
         fe: null,
