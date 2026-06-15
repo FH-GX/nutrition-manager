@@ -1,5 +1,33 @@
 # 版本日志 — 「今天，吃了吗？」
 
+## V2.2.15（修正食物营养数据 — 2026-06-15）
+
+### Bug 修复
+- ** 8种食物营养数据错误**：对照《中国食物成分表第六版》修正 Web 端和小程序的食物数据库
+  - 山药：327kcal→56kcal（干山药→鲜山药）
+  - 玉米（鲜）：348kcal→112kcal（干玉米→鲜玉米）
+  - 菠菜：308kcal→24kcal（脱水菠菜→鲜菠菜）
+  - 葡萄：344kcal→43kcal（葡萄干→鲜葡萄）
+  - 樱桃：304kcal→46kcal（干樱桃→鲜樱桃）
+  - 芋头：p:2.9→2.2, c:13→12.7
+  - 桃：cal:60→46, c:14.5→10.2
+  - 马铃薯：cal:65→77, p:3.2→2.0, c:14.2→17.4
+- **📱 小程序 P/F/C 显示优化**：隐藏食物行中的 P/F/C 宏量营养素数值，只保留 kcal，减少视觉干扰
+- **🔄 小程序重算机制**：renderPlan 中用本地食物库重新计算每项食物的 kcal/P/F/C，不信任缓存/API 返回的错误数据
+
+### 根因分析
+Web 端 foods.js 在某次更新时混入了干制品/脱水品数据（可能是从 USDA 或其他来源误复制），导致 5 种食物数值严重偏高。小程序 utils/foods.js 从 Web 端提取时继承了这些错误。验证方法：cal≈p*4+f*9+c*4，且蔬菜/水果 cal 一般<100。
+
+### 改动文件
+- `data/foods.js`：修正 8 种食物的 per100g 营养数据
+- `js/app.js`：无改动（方案生成依赖云端 Edge Function，使用最新 foods.js）
+- `E:\nutrition-miniapp\utils\foods.js`：同步修正 + 新增豆花
+- `E:\nutrition-miniapp\data\foods.js`：从 Web 端同步
+- `E:\nutrition-miniapp\pages\index\index.js`：renderPlan 增加 recalcFoods 重算逻辑
+- `E:\nutrition-miniapp\pages\index\index.wxml`：隐藏 .food-macro 显示
+
+---
+
 ## V2.2.14（单设备登录加强 + 儿童RDI — 2026-06-13）
 
 ### 修复
